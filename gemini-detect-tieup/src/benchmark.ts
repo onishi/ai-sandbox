@@ -27,6 +27,11 @@ function formatTieups(tieups: Tieup[]): string {
 
 const MODEL_VERSIONS: Array<"2.0" | "2.5"> = ["2.0", "2.5"];
 const GROUNDING_OPTIONS = [false, true];
+const SLEEP_MS = 500; // API呼び出し間隔（ミリ秒）
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function parseTsv(content: string): Array<{ song: string; artist: string }> {
   const lines = content.trim().split("\n");
@@ -118,6 +123,9 @@ async function runBenchmark(
             error: error instanceof Error ? error.message : String(error),
           });
         }
+
+        // API呼び出し間隔を空ける
+        await sleep(SLEEP_MS);
       }
     }
   }
