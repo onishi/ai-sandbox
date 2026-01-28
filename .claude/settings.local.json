@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx ts-node src/index.ts \"紅蓮華\" \"LiSA\")",
+      "Bash(curl:*)"
+    ]
+  }
+}
