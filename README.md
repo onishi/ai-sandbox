@@ -7,3 +7,4 @@ AI関連の実験・開発用リポジトリ
 | ディレクトリ | 内容 |
 |-------------|------|
 | gemini-detect-tieup | Gemini API で曲名・アーティスト名からタイアップ情報を取得 |
+| chatgpt-detect-tieup | OpenAI API (ChatGPT) で曲名・アーティスト名からタイアップ情報を取得 |
