@@ -46,6 +46,8 @@ npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
 - `206` を指定: `data/kyoto-city-route-stops-206.json`
 - `46 206` を指定: `data/kyoto-city-route-stops-46-206.json`
 
+全系統を取得する場合は、京都市サイトへの連続アクセスを避けるため、系統ページごとに 1 秒待ってから次のリクエストを送ります。
+
 出力例:
 
 ```json

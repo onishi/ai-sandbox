@@ -18,6 +18,7 @@ interface OutputShape {
 const ROUTE_INDEX_URL =
   "https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/keitou.htm";
 const DEFAULT_OUTPUT_PREFIX = "data/kyoto-city-route-stops";
+const REQUEST_INTERVAL_MS = 1000;
 
 function printHelp(): void {
   console.log(`使用法: npx ts-node src/scrape-route-stops.ts [options] [route...]
@@ -66,6 +67,10 @@ async function fetchHtml(url: string): Promise<string> {
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function slugifyFilter(value: string): string {
@@ -184,12 +189,17 @@ function matchesFilter(route: RouteStops, filters: string[]): boolean {
   });
 }
 
-async function scrapeAllRouteStops(): Promise<RouteStops[]> {
+async function scrapeAllRouteStops(withThrottle: boolean): Promise<RouteStops[]> {
   const indexHtml = await fetchHtml(ROUTE_INDEX_URL);
   const routeUrls = extractRouteUrls(indexHtml);
 
   const routes: RouteStops[] = [];
-  for (const url of routeUrls) {
+  for (let i = 0; i < routeUrls.length; i++) {
+    if (withThrottle && i > 0) {
+      await sleep(REQUEST_INTERVAL_MS);
+    }
+
+    const url = routeUrls[i];
     const routeHtml = await fetchHtml(url);
     const title = extractTitle(routeHtml);
     const routeName = extractRouteName(title);
@@ -203,7 +213,10 @@ async function scrapeAllRouteStops(): Promise<RouteStops[]> {
 async function main(): Promise<void> {
   const { outputPath, filters } = parseArgs(process.argv.slice(2));
   const resolvedOutputPath = outputPath ?? buildDefaultOutputPath(filters);
-  const routes = (await scrapeAllRouteStops()).filter((route) => matchesFilter(route, filters));
+  const withThrottle = filters.length === 0;
+  const routes = (await scrapeAllRouteStops(withThrottle)).filter((route) =>
+    matchesFilter(route, filters)
+  );
 
   const output: OutputShape = {
     generatedAt: new Date().toISOString(),
