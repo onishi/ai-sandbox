@@ -107,9 +107,16 @@ function isReadingToken(token: string): boolean {
   return /^[\p{Script=Hiragana}\p{Script=Katakana}ー・･\/／\s（）()]+$/u.test(token);
 }
 
+function isDirectionText(text: string): boolean {
+  return /行き?/.test(text) || /のりば/.test(text);
+}
+
 function extractJapaneseStopName(anchorText: string): string | undefined {
   const text = normalizeSpace(anchorText);
   if (!/[A-Za-z]/.test(text)) {
+    return undefined;
+  }
+  if (isDirectionText(text)) {
     return undefined;
   }
   if (text.includes("行き")) {
