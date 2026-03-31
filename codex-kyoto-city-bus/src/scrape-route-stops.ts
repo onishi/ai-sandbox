@@ -104,7 +104,7 @@ function extractRouteName(title: string): string {
 }
 
 function isReadingToken(token: string): boolean {
-  return /^[\p{Script=Hiragana}\p{Script=Katakana}ー・･\s（）()]+$/u.test(token);
+  return /^[\p{Script=Hiragana}\p{Script=Katakana}ー・･\/／\s（）()]+$/u.test(token);
 }
 
 function extractJapaneseStopName(anchorText: string): string | undefined {
