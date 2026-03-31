@@ -40,6 +40,12 @@ npm run scrape:route-stops -- 206
 npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
 ```
 
+`-o` を付けない場合、出力先は自動で決まります。
+
+- 全系統: `data/kyoto-city-route-stops-all.json`
+- `206` を指定: `data/kyoto-city-route-stops-206.json`
+- `46 206` を指定: `data/kyoto-city-route-stops-46-206.json`
+
 出力例:
 
 ```json

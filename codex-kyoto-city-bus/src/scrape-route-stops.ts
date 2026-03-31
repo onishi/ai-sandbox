@@ -17,7 +17,7 @@ interface OutputShape {
 
 const ROUTE_INDEX_URL =
   "https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/keitou.htm";
-const DEFAULT_OUTPUT_PATH = "data/kyoto-city-route-stops.json";
+const DEFAULT_OUTPUT_PREFIX = "data/kyoto-city-route-stops";
 
 function printHelp(): void {
   console.log(`使用法: npx ts-node src/scrape-route-stops.ts [options] [route...]
@@ -25,7 +25,7 @@ function printHelp(): void {
 京都市バスの系統番号検索ページをたどって、系統ごとの停留所一覧を JSON 化します。
 
 options:
-  -o, --output <file>  出力先ファイル。省略時は data/kyoto-city-route-stops.json
+  -o, --output <file>  出力先ファイル。省略時は系統名入りのファイル名を自動生成
   -h, --help           ヘルプを表示
 
 examples:
@@ -66,6 +66,17 @@ async function fetchHtml(url: string): Promise<string> {
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function slugifyFilter(value: string): string {
+  return normalizeSpace(value)
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "-");
+}
+
+function buildDefaultOutputPath(filters: string[]): string {
+  const suffix = filters.length === 0 ? "all" : filters.map(slugifyFilter).join("-");
+  return `${DEFAULT_OUTPUT_PREFIX}-${suffix}.json`;
 }
 
 function extractRouteUrls(indexHtml: string): string[] {
@@ -133,8 +144,8 @@ function extractStops(routeHtml: string): string[] {
   return unique(stops);
 }
 
-function parseArgs(args: string[]): { outputPath: string; filters: string[] } {
-  let outputPath = DEFAULT_OUTPUT_PATH;
+function parseArgs(args: string[]): { outputPath?: string; filters: string[] } {
+  let outputPath: string | undefined;
   const filters: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -191,6 +202,7 @@ async function scrapeAllRouteStops(): Promise<RouteStops[]> {
 
 async function main(): Promise<void> {
   const { outputPath, filters } = parseArgs(process.argv.slice(2));
+  const resolvedOutputPath = outputPath ?? buildDefaultOutputPath(filters);
   const routes = (await scrapeAllRouteStops()).filter((route) => matchesFilter(route, filters));
 
   const output: OutputShape = {
@@ -200,10 +212,10 @@ async function main(): Promise<void> {
     routes,
   };
 
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+  fs.writeFileSync(resolvedOutputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
 
-  console.log(`保存しました: ${outputPath}`);
+  console.log(`保存しました: ${resolvedOutputPath}`);
   console.log(`系統数: ${routes.length}`);
 }
 
