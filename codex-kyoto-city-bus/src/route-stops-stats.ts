@@ -37,7 +37,7 @@ command:
       停留所ごとに、1回乗り換えで到達可能なユニーク停留所数をタブ区切りで出力します
   routes-by-stop <stop-name>
       指定した停留所を含む路線一覧を表示します
-  stop-route-reachable-stops
+  stop-route-reachable-stops [stop-name]
       乗車停留所・系列・到達可能停留所をタブ区切りで出力します
 
 options:
@@ -52,6 +52,7 @@ examples:
   npx ts-node src/route-stops-stats.ts one-transfer-reachable-stops-count
   npx ts-node src/route-stops-stats.ts routes-by-stop 京都駅前
   npx ts-node src/route-stops-stats.ts stop-route-reachable-stops
+  npx ts-node src/route-stops-stats.ts stop-route-reachable-stops 京都駅前
   npx ts-node src/route-stops-stats.ts stop-routes data/kyoto-city-route-stops-206.json
   npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
 }
@@ -286,13 +287,17 @@ function printRoutesByStop(data: RouteStopsFile, stopQuery: string): void {
   }
 }
 
-function printStopRouteReachableStops(data: RouteStopsFile): void {
+function printStopRouteReachableStops(data: RouteStopsFile, stopQuery?: string): void {
+  const normalizedQuery = stopQuery ? normalizeForSearch(stopQuery) : "";
   const rows: string[] = [];
 
   for (const route of [...data.routes].sort((a, b) => a.routeName.localeCompare(b.routeName, "ja"))) {
     const reachableStops = [...new Set(route.stops)].sort((a, b) => a.localeCompare(b, "ja"));
 
     for (const originStop of reachableStops) {
+      if (normalizedQuery && !normalizeForSearch(originStop).includes(normalizedQuery)) {
+        continue;
+      }
       for (const reachableStop of reachableStops) {
         if (reachableStop === originStop) {
           continue;
@@ -354,7 +359,7 @@ function main(): void {
   }
 
   if (command === "stop-route-reachable-stops") {
-    printStopRouteReachableStops(data);
+    printStopRouteReachableStops(data, commandArgs[0]);
     return;
   }
 
