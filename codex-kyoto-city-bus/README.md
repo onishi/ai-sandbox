@@ -48,6 +48,18 @@ npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
 
 全系統を取得する場合は、京都市サイトへの連続アクセスを避けるため、系統ページごとに 1 秒待ってから次のリクエストを送ります。
 
+## JSON 集計コマンド
+
+スクレイプ済みの JSON を読み取って集計する CLI もあります。入力ファイルはデフォルトで `data/kyoto-city-route-stops-all.json` を使い、読めない場合はエラーになります。
+
+```bash
+npm run stats:route-stops -- stop-routes
+npm run stats:route-stops -- stop-routes data/kyoto-city-route-stops-206.json
+npm run stats:route-stops -- stop-routes -i data/routes.json
+```
+
+`stop-routes` は、停留所名とその停留所を通る路線一覧をタブ区切りで出力します。
+
 出力例:
 
 ```json

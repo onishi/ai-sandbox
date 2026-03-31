@@ -1,0 +1,142 @@
+import * as fs from "fs";
+import * as path from "path";
+
+interface RouteStops {
+  routeName: string;
+  title: string;
+  url: string;
+  stops: string[];
+}
+
+interface RouteStopsFile {
+  generatedAt: string;
+  sourceUrl: string;
+  routeCount: number;
+  routes: RouteStops[];
+}
+
+const DEFAULT_INPUT_PATH = "data/kyoto-city-route-stops-all.json";
+
+function printHelp(): void {
+  console.log(`使用法: npx ts-node src/route-stops-stats.ts <command> [options] [input.json]
+
+command:
+  stop-routes
+      停留所ごとに通っている路線をタブ区切りで出力します
+
+options:
+  -i, --input <file>  入力 JSON ファイル。省略時は data/kyoto-city-route-stops-all.json
+  -h, --help          ヘルプを表示
+
+examples:
+  npx ts-node src/route-stops-stats.ts stop-routes
+  npx ts-node src/route-stops-stats.ts stop-routes data/kyoto-city-route-stops-206.json
+  npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
+}
+
+function parseArgs(args: string[]): { command: string; inputPath: string } {
+  const command = args[0];
+  if (!command || command === "-h" || command === "--help") {
+    printHelp();
+    process.exit(0);
+  }
+
+  let inputPath = DEFAULT_INPUT_PATH;
+
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "-h" || arg === "--help") {
+      printHelp();
+      process.exit(0);
+    }
+    if (arg === "-i" || arg === "--input") {
+      inputPath = args[++i];
+      if (!inputPath) {
+        throw new Error("入力ファイルを指定してください");
+      }
+      continue;
+    }
+    inputPath = arg;
+  }
+
+  return { command, inputPath };
+}
+
+function readRouteStopsFile(inputPath: string): RouteStopsFile {
+  const resolvedPath = path.resolve(process.cwd(), inputPath);
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`入力ファイルが見つかりません: ${resolvedPath}`);
+  }
+
+  let raw: string;
+  try {
+    raw = fs.readFileSync(resolvedPath, "utf8");
+  } catch (error) {
+    throw new Error(
+      `入力ファイルを読み取れませんでした: ${resolvedPath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `入力ファイルの JSON を解析できませんでした: ${resolvedPath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    !Array.isArray((parsed as Partial<RouteStopsFile>).routes)
+  ) {
+    throw new Error(`入力ファイルの形式が不正です: ${resolvedPath}`);
+  }
+
+  return parsed as RouteStopsFile;
+}
+
+function printStopRoutes(data: RouteStopsFile): void {
+  const stopToRoutes = new Map<string, Set<string>>();
+
+  for (const route of data.routes) {
+    for (const stop of route.stops) {
+      const routeNames = stopToRoutes.get(stop) ?? new Set<string>();
+      routeNames.add(route.routeName);
+      stopToRoutes.set(stop, routeNames);
+    }
+  }
+
+  const rows = [...stopToRoutes.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], "ja"))
+    .map(([stop, routeNames]) => `${stop}\t${[...routeNames].sort((a, b) => a.localeCompare(b, "ja")).join(",")}`);
+
+  for (const row of rows) {
+    console.log(row);
+  }
+}
+
+function main(): void {
+  const { command, inputPath } = parseArgs(process.argv.slice(2));
+  const data = readRouteStopsFile(inputPath);
+
+  if (command === "stop-routes") {
+    printStopRoutes(data);
+    return;
+  }
+
+  throw new Error(`不明なコマンドです: ${command}`);
+}
+
+try {
+  main();
+} catch (error) {
+  console.error("エラー:", error instanceof Error ? error.message : error);
+  process.exit(1);
+}
