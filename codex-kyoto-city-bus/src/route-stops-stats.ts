@@ -27,6 +27,8 @@ command:
       停留所ごとに通っている路線数をタブ区切りで出力します
   reachable-stops-count
       停留所ごとに、その停留所を通る路線で行ける停留所数をタブ区切りで出力します
+  one-transfer-reachable-stops-count
+      停留所ごとに、1回乗り換えで到達可能なユニーク停留所数をタブ区切りで出力します
 
 options:
   -i, --input <file>  入力 JSON ファイル。省略時は data/kyoto-city-route-stops-all.json
@@ -36,6 +38,7 @@ examples:
   npx ts-node src/route-stops-stats.ts stop-routes
   npx ts-node src/route-stops-stats.ts route-stops-count
   npx ts-node src/route-stops-stats.ts reachable-stops-count
+  npx ts-node src/route-stops-stats.ts one-transfer-reachable-stops-count
   npx ts-node src/route-stops-stats.ts stop-routes data/kyoto-city-route-stops-206.json
   npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
 }
@@ -181,6 +184,63 @@ function printReachableStopsCount(data: RouteStopsFile): void {
   }
 }
 
+function buildDirectReachableStops(
+  originStop: string,
+  stopToRoutes: Map<string, Set<string>>,
+  routeToStops: Map<string, Set<string>>
+): Set<string> {
+  const reachableStops = new Set<string>();
+  const routeNames = stopToRoutes.get(originStop) ?? new Set<string>();
+
+  for (const routeName of routeNames) {
+    const stops = routeToStops.get(routeName);
+    if (!stops) {
+      continue;
+    }
+    for (const stop of stops) {
+      if (stop !== originStop) {
+        reachableStops.add(stop);
+      }
+    }
+  }
+
+  return reachableStops;
+}
+
+function printOneTransferReachableStopsCount(data: RouteStopsFile): void {
+  const stopToRoutes = buildStopToRoutes(data);
+  const routeToStops = buildRouteToStops(data);
+
+  const rows = [...stopToRoutes.keys()]
+    .sort((a, b) => a.localeCompare(b, "ja"))
+    .map((originStop) => {
+      const reachableStops = buildDirectReachableStops(originStop, stopToRoutes, routeToStops);
+      const transferStops = new Set<string>(reachableStops);
+      transferStops.add(originStop);
+
+      for (const transferStop of transferStops) {
+        const transferRouteNames = stopToRoutes.get(transferStop) ?? new Set<string>();
+        for (const routeName of transferRouteNames) {
+          const stops = routeToStops.get(routeName);
+          if (!stops) {
+            continue;
+          }
+          for (const stop of stops) {
+            if (stop !== originStop) {
+              reachableStops.add(stop);
+            }
+          }
+        }
+      }
+
+      return `${originStop}\t${reachableStops.size}`;
+    });
+
+  for (const row of rows) {
+    console.log(row);
+  }
+}
+
 function main(): void {
   const { command, inputPath } = parseArgs(process.argv.slice(2));
   const data = readRouteStopsFile(inputPath);
@@ -197,6 +257,11 @@ function main(): void {
 
   if (command === "reachable-stops-count") {
     printReachableStopsCount(data);
+    return;
+  }
+
+  if (command === "one-transfer-reachable-stops-count") {
+    printOneTransferReachableStopsCount(data);
     return;
   }
 
