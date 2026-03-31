@@ -260,7 +260,9 @@ function printRoutesByStop(data: RouteStopsFile, stopQuery: string): void {
   }
 
   for (const [stop, routeNames] of matchedStops) {
-    console.log(`${stop}\t${[...routeNames].sort((a, b) => a.localeCompare(b, "ja")).join(",")}`);
+    for (const routeName of [...routeNames].sort((a, b) => a.localeCompare(b, "ja"))) {
+      console.log(`${stop}\t${routeName}`);
+    }
   }
 }
 
