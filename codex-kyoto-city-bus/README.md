@@ -52,26 +52,29 @@ npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
 
 ## JSON 集計コマンド
 
-スクレイプ済みの JSON を読み取って集計する CLI もあります。入力ファイルはデフォルトで `data/kyoto-city-route-stops-all.json` を使い、読めない場合はエラーになります。
+スクレイプ済みの JSON を読み取る集計 CLI です。入力ファイルはデフォルトで `data/kyoto-city-route-stops-all.json` を使い、`-i` で差し替えます。停留所名の絞り込みは `--match` に統一しています。
 
 ```bash
-npm run stats:route-stops -- stop-routes
-npm run stats:route-stops -- route-stops-count
-npm run stats:route-stops -- reachable-stops-count
-npm run stats:route-stops -- one-transfer-reachable-stops-count
-npm run stats:route-stops -- routes-by-stop 京都駅前
-npm run stats:route-stops -- stop-route-reachable-stops
-npm run stats:route-stops -- stop-route-reachable-stops 京都駅前
-npm run stats:route-stops -- stop-routes data/kyoto-city-route-stops-206.json
-npm run stats:route-stops -- stop-routes -i data/routes.json
+npm run stats:route-stops -- stops:routes
+npm run stats:route-stops -- stops:routes --match 京都駅前
+npm run stats:route-stops -- stops:route-count
+npm run stats:route-stops -- stops:direct-reachable-count
+npm run stats:route-stops -- stops:one-transfer-reachable-count --match 西賀茂車庫
+npm run stats:route-stops -- stops:route-reachable --match 京都駅前
+npm run stats:route-stops -- stops:routes -i data/kyoto-city-route-stops-206.json
 ```
 
-`stop-routes` は、停留所名とその停留所を通る路線一覧をタブ区切りで出力します。
-`route-stops-count` は、停留所名とその停留所を通る路線数をタブ区切りで出力します。
-`reachable-stops-count` は、停留所名とその停留所を通る路線で到達可能な停留所数をタブ区切りで出力します。停留所自身は件数に含めません。
-`one-transfer-reachable-stops-count` は、停留所名と、同名停留所で 1 回乗り換えた場合に到達可能なユニーク停留所数をタブ区切りで出力します。停留所自身は件数に含めません。
-`routes-by-stop` は、指定した停留所名に部分一致する停留所と、その停留所を含む路線を 1 路線 1 行のタブ区切りで出力します。
-`stop-route-reachable-stops` は、乗車停留所・系列・その系列だけで到達可能な停留所を 1 行ずつタブ区切りで出力します。停留所名を指定すると、その停留所に部分一致する乗車停留所だけに絞り込みます。
+- `stops:routes`: `停留所<TAB>系列` を 1 行ずつ出力
+- `stops:route-count`: `停留所<TAB>系列数` を出力
+- `stops:direct-reachable-count`: `停留所<TAB>直通到達可能停留所数` を出力
+- `stops:one-transfer-reachable-count`: `停留所<TAB>1回乗り換え到達可能停留所数` を出力
+- `stops:route-reachable`: `乗車停留所<TAB>系列<TAB>到達可能停留所` を 1 行ずつ出力
+
+共通オプション:
+
+- `-i, --input <file>`: 入力 JSON ファイルを指定
+- `--match <keyword>`: 停留所名で部分一致フィルタ
+- `--verbose`: 入力ファイルやフィルタを stderr に表示
 
 出力例:
 
