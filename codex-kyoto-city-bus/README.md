@@ -54,11 +54,13 @@ npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
 
 ```bash
 npm run stats:route-stops -- stop-routes
+npm run stats:route-stops -- route-stops-count
 npm run stats:route-stops -- stop-routes data/kyoto-city-route-stops-206.json
 npm run stats:route-stops -- stop-routes -i data/routes.json
 ```
 
 `stop-routes` は、停留所名とその停留所を通る路線一覧をタブ区切りで出力します。
+`route-stops-count` は、停留所名とその停留所を通る路線数をタブ区切りで出力します。
 
 出力例:
 

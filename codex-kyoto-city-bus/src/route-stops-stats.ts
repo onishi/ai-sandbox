@@ -23,6 +23,8 @@ function printHelp(): void {
 command:
   stop-routes
       停留所ごとに通っている路線をタブ区切りで出力します
+  route-stops-count
+      停留所ごとに通っている路線数をタブ区切りで出力します
 
 options:
   -i, --input <file>  入力 JSON ファイル。省略時は data/kyoto-city-route-stops-all.json
@@ -30,6 +32,7 @@ options:
 
 examples:
   npx ts-node src/route-stops-stats.ts stop-routes
+  npx ts-node src/route-stops-stats.ts route-stops-count
   npx ts-node src/route-stops-stats.ts stop-routes data/kyoto-city-route-stops-206.json
   npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
 }
@@ -103,6 +106,16 @@ function readRouteStopsFile(inputPath: string): RouteStopsFile {
 }
 
 function printStopRoutes(data: RouteStopsFile): void {
+  const rows = [...buildStopToRoutes(data).entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], "ja"))
+    .map(([stop, routeNames]) => `${stop}\t${[...routeNames].sort((a, b) => a.localeCompare(b, "ja")).join(",")}`);
+
+  for (const row of rows) {
+    console.log(row);
+  }
+}
+
+function buildStopToRoutes(data: RouteStopsFile): Map<string, Set<string>> {
   const stopToRoutes = new Map<string, Set<string>>();
 
   for (const route of data.routes) {
@@ -113,9 +126,13 @@ function printStopRoutes(data: RouteStopsFile): void {
     }
   }
 
-  const rows = [...stopToRoutes.entries()]
+  return stopToRoutes;
+}
+
+function printRouteStopsCount(data: RouteStopsFile): void {
+  const rows = [...buildStopToRoutes(data).entries()]
     .sort((a, b) => a[0].localeCompare(b[0], "ja"))
-    .map(([stop, routeNames]) => `${stop}\t${[...routeNames].sort((a, b) => a.localeCompare(b, "ja")).join(",")}`);
+    .map(([stop, routeNames]) => `${stop}\t${routeNames.size}`);
 
   for (const row of rows) {
     console.log(row);
@@ -128,6 +145,11 @@ function main(): void {
 
   if (command === "stop-routes") {
     printStopRoutes(data);
+    return;
+  }
+
+  if (command === "route-stops-count") {
+    printRouteStopsCount(data);
     return;
   }
 
