@@ -57,6 +57,7 @@ npm run stats:route-stops -- stop-routes
 npm run stats:route-stops -- route-stops-count
 npm run stats:route-stops -- reachable-stops-count
 npm run stats:route-stops -- one-transfer-reachable-stops-count
+npm run stats:route-stops -- routes-by-stop 京都駅前
 npm run stats:route-stops -- stop-routes data/kyoto-city-route-stops-206.json
 npm run stats:route-stops -- stop-routes -i data/routes.json
 ```
@@ -65,6 +66,7 @@ npm run stats:route-stops -- stop-routes -i data/routes.json
 `route-stops-count` は、停留所名とその停留所を通る路線数をタブ区切りで出力します。
 `reachable-stops-count` は、停留所名とその停留所を通る路線で到達可能な停留所数をタブ区切りで出力します。停留所自身は件数に含めません。
 `one-transfer-reachable-stops-count` は、停留所名と、同名停留所で 1 回乗り換えた場合に到達可能なユニーク停留所数をタブ区切りで出力します。停留所自身は件数に含めません。
+`routes-by-stop` は、指定した停留所名に部分一致する停留所と、その停留所を含む路線一覧をタブ区切りで出力します。
 
 出力例:
 

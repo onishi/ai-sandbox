@@ -29,6 +29,8 @@ command:
       停留所ごとに、その停留所を通る路線で行ける停留所数をタブ区切りで出力します
   one-transfer-reachable-stops-count
       停留所ごとに、1回乗り換えで到達可能なユニーク停留所数をタブ区切りで出力します
+  routes-by-stop <stop-name>
+      指定した停留所を含む路線一覧を表示します
 
 options:
   -i, --input <file>  入力 JSON ファイル。省略時は data/kyoto-city-route-stops-all.json
@@ -39,11 +41,12 @@ examples:
   npx ts-node src/route-stops-stats.ts route-stops-count
   npx ts-node src/route-stops-stats.ts reachable-stops-count
   npx ts-node src/route-stops-stats.ts one-transfer-reachable-stops-count
+  npx ts-node src/route-stops-stats.ts routes-by-stop 京都駅前
   npx ts-node src/route-stops-stats.ts stop-routes data/kyoto-city-route-stops-206.json
   npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
 }
 
-function parseArgs(args: string[]): { command: string; inputPath: string } {
+function parseArgs(args: string[]): { command: string; inputPath: string; commandArgs: string[] } {
   const command = args[0];
   if (!command || command === "-h" || command === "--help") {
     printHelp();
@@ -51,6 +54,7 @@ function parseArgs(args: string[]): { command: string; inputPath: string } {
   }
 
   let inputPath = DEFAULT_INPUT_PATH;
+  const commandArgs: string[] = [];
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -65,10 +69,10 @@ function parseArgs(args: string[]): { command: string; inputPath: string } {
       }
       continue;
     }
-    inputPath = arg;
+    commandArgs.push(arg);
   }
 
-  return { command, inputPath };
+  return { command, inputPath, commandArgs };
 }
 
 function readRouteStopsFile(inputPath: string): RouteStopsFile {
@@ -241,9 +245,38 @@ function printOneTransferReachableStopsCount(data: RouteStopsFile): void {
   }
 }
 
+function normalizeForSearch(value: string): string {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function printRoutesByStop(data: RouteStopsFile, stopQuery: string): void {
+  const normalizedQuery = normalizeForSearch(stopQuery);
+  const matchedStops = [...buildStopToRoutes(data).entries()]
+    .filter(([stop]) => normalizeForSearch(stop).includes(normalizedQuery))
+    .sort((a, b) => a[0].localeCompare(b[0], "ja"));
+
+  if (matchedStops.length === 0) {
+    throw new Error(`一致する停留所が見つかりません: ${stopQuery}`);
+  }
+
+  for (const [stop, routeNames] of matchedStops) {
+    console.log(`${stop}\t${[...routeNames].sort((a, b) => a.localeCompare(b, "ja")).join(",")}`);
+  }
+}
+
 function main(): void {
-  const { command, inputPath } = parseArgs(process.argv.slice(2));
-  const data = readRouteStopsFile(inputPath);
+  const { command, inputPath, commandArgs } = parseArgs(process.argv.slice(2));
+
+  const resolvedInputPath =
+    command === "routes-by-stop"
+      ? commandArgs.length >= 2
+        ? commandArgs[1]
+        : inputPath
+      : commandArgs.length >= 1
+        ? commandArgs[0]
+        : inputPath;
+
+  const data = readRouteStopsFile(resolvedInputPath);
 
   if (command === "stop-routes") {
     printStopRoutes(data);
@@ -262,6 +295,15 @@ function main(): void {
 
   if (command === "one-transfer-reachable-stops-count") {
     printOneTransferReachableStopsCount(data);
+    return;
+  }
+
+  if (command === "routes-by-stop") {
+    const stopQuery = commandArgs[0];
+    if (!stopQuery) {
+      throw new Error("停留所名を指定してください");
+    }
+    printRoutesByStop(data, stopQuery);
     return;
   }
 
