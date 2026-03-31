@@ -25,6 +25,8 @@ command:
       停留所ごとに通っている路線をタブ区切りで出力します
   route-stops-count
       停留所ごとに通っている路線数をタブ区切りで出力します
+  reachable-stops-count
+      停留所ごとに、その停留所を通る路線で行ける停留所数をタブ区切りで出力します
 
 options:
   -i, --input <file>  入力 JSON ファイル。省略時は data/kyoto-city-route-stops-all.json
@@ -33,6 +35,7 @@ options:
 examples:
   npx ts-node src/route-stops-stats.ts stop-routes
   npx ts-node src/route-stops-stats.ts route-stops-count
+  npx ts-node src/route-stops-stats.ts reachable-stops-count
   npx ts-node src/route-stops-stats.ts stop-routes data/kyoto-city-route-stops-206.json
   npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
 }
@@ -139,6 +142,45 @@ function printRouteStopsCount(data: RouteStopsFile): void {
   }
 }
 
+function buildRouteToStops(data: RouteStopsFile): Map<string, Set<string>> {
+  const routeToStops = new Map<string, Set<string>>();
+
+  for (const route of data.routes) {
+    routeToStops.set(route.routeName, new Set(route.stops));
+  }
+
+  return routeToStops;
+}
+
+function printReachableStopsCount(data: RouteStopsFile): void {
+  const stopToRoutes = buildStopToRoutes(data);
+  const routeToStops = buildRouteToStops(data);
+
+  const rows = [...stopToRoutes.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], "ja"))
+    .map(([stop, routeNames]) => {
+      const reachableStops = new Set<string>();
+
+      for (const routeName of routeNames) {
+        const stops = routeToStops.get(routeName);
+        if (!stops) {
+          continue;
+        }
+        for (const reachableStop of stops) {
+          if (reachableStop !== stop) {
+            reachableStops.add(reachableStop);
+          }
+        }
+      }
+
+      return `${stop}\t${reachableStops.size}`;
+    });
+
+  for (const row of rows) {
+    console.log(row);
+  }
+}
+
 function main(): void {
   const { command, inputPath } = parseArgs(process.argv.slice(2));
   const data = readRouteStopsFile(inputPath);
@@ -150,6 +192,11 @@ function main(): void {
 
   if (command === "route-stops-count") {
     printRouteStopsCount(data);
+    return;
+  }
+
+  if (command === "reachable-stops-count") {
+    printReachableStopsCount(data);
     return;
   }
 
