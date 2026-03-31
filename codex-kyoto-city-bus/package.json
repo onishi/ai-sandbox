@@ -1,0 +1,15 @@
+{
+  "name": "codex-kyoto-city-bus",
+  "version": "1.0.0",
+  "description": "京都市営バスの GTFS データを取得して検索する CLI",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "npx ts-node src/index.ts",
+    "typecheck": "npx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  }
+}
