@@ -1,6 +1,6 @@
 # codex-kyoto-city-bus
 
-京都市営バスの GTFS データを取得して、停留所・系統・静的時刻表を検索する TypeScript CLI です。
+京都市営バスに関する情報を取得する TypeScript CLI です。GTFS を使った検索に加えて、京都市の系統番号検索ページをスクレイプして、系統ごとの停留所一覧を JSON 化するプロトタイプも含みます。
 
 ## GTFS とは
 
@@ -28,6 +28,34 @@ export ODPT_ACCESS_TOKEN=YOUR_ACCESS_TOKEN
 
 ```bash
 npm install
+```
+
+## トークン不要のプロトタイプ
+
+京都市公式の系統番号検索ページ `https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/keitou.htm` をたどって、系統ごとの停留所一覧を JSON に保存できます。こちらは `ODPT_ACCESS_TOKEN` 不要です。
+
+```bash
+npm run scrape:route-stops
+npm run scrape:route-stops -- 206
+npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
+```
+
+出力例:
+
+```json
+{
+  "generatedAt": "2026-03-31T00:00:00.000Z",
+  "sourceUrl": "https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/keitou.htm",
+  "routeCount": 1,
+  "routes": [
+    {
+      "routeName": "206",
+      "title": "206 号系統の停車停留所",
+      "url": "https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/kto/20600.htm",
+      "stops": ["京都駅前", "七条大宮・京都水族館前"]
+    }
+  ]
+}
 ```
 
 ## 使い方

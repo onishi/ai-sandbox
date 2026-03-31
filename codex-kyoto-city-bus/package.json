@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "npx ts-node src/index.ts",
+    "scrape:route-stops": "npx ts-node src/scrape-route-stops.ts",
     "typecheck": "npx tsc --noEmit"
   },
   "devDependencies": {
