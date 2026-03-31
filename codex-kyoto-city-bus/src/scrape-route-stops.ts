@@ -103,6 +103,10 @@ function extractRouteName(title: string): string {
   return match ? normalizeSpace(match[1]) : title;
 }
 
+function isReadingToken(token: string): boolean {
+  return /^[\p{Script=Hiragana}\p{Script=Katakana}ー・･\s（）()]+$/u.test(token);
+}
+
 function extractJapaneseStopName(anchorText: string): string | undefined {
   const text = normalizeSpace(anchorText);
   if (!/[A-Za-z]/.test(text)) {
@@ -113,12 +117,15 @@ function extractJapaneseStopName(anchorText: string): string | undefined {
   }
 
   const tokens = text.split(" ");
-  const firstAsciiIndex = tokens.findIndex((token) => /[A-Za-z]/.test(token));
-  if (firstAsciiIndex <= 1) {
+  const firstAsciiIndex = tokens.findIndex((token) => /[A-Za-z"]/.test(token));
+  if (firstAsciiIndex === -1) {
     return undefined;
   }
 
-  const stopName = tokens.slice(1, firstAsciiIndex).join(" ").trim();
+  const japaneseTokens = tokens
+    .slice(0, firstAsciiIndex)
+    .filter((token) => token && !isReadingToken(token));
+  const stopName = japaneseTokens.join(" ").trim();
   if (!stopName) {
     return undefined;
   }
