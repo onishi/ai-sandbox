@@ -35,12 +35,12 @@ npm install
 京都市公式の系統番号検索ページ `https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/keitou.htm` をたどって、系統ごとの停留所一覧を JSON に保存できます。こちらは `ODPT_ACCESS_TOKEN` 不要です。
 
 ```bash
-npm --silent run scrape:route-stops
-npm --silent run scrape:route-stops -- 206
-npm --silent run scrape:route-stops -- 快速 -o data/rapid-routes.json
+npm run scrape:route-stops
+npm run scrape:route-stops -- 206
+npm run scrape:route-stops -- 快速 -o data/rapid-routes.json
 ```
 
-通常は `npm --silent run ...` を使うと npm 自体のヘッダを抑制できます。詳細ログが必要な場合だけ `--verbose` を付けてください。
+このディレクトリでは `.npmrc` で `loglevel=silent` を設定しているため、`npm run ...` でも npm 自体のヘッダは通常表示されません。詳細ログが必要な場合だけ `--verbose` を付けてください。
 
 `-o` を付けない場合、出力先は自動で決まります。
 
@@ -55,13 +55,13 @@ npm --silent run scrape:route-stops -- 快速 -o data/rapid-routes.json
 スクレイプ済みの JSON を読み取って集計する CLI もあります。入力ファイルはデフォルトで `data/kyoto-city-route-stops-all.json` を使い、読めない場合はエラーになります。
 
 ```bash
-npm --silent run stats:route-stops -- stop-routes
-npm --silent run stats:route-stops -- route-stops-count
-npm --silent run stats:route-stops -- reachable-stops-count
-npm --silent run stats:route-stops -- one-transfer-reachable-stops-count
-npm --silent run stats:route-stops -- routes-by-stop 京都駅前
-npm --silent run stats:route-stops -- stop-routes data/kyoto-city-route-stops-206.json
-npm --silent run stats:route-stops -- stop-routes -i data/routes.json
+npm run stats:route-stops -- stop-routes
+npm run stats:route-stops -- route-stops-count
+npm run stats:route-stops -- reachable-stops-count
+npm run stats:route-stops -- one-transfer-reachable-stops-count
+npm run stats:route-stops -- routes-by-stop 京都駅前
+npm run stats:route-stops -- stop-routes data/kyoto-city-route-stops-206.json
+npm run stats:route-stops -- stop-routes -i data/routes.json
 ```
 
 `stop-routes` は、停留所名とその停留所を通る路線一覧をタブ区切りで出力します。
@@ -93,10 +93,10 @@ npm --silent run stats:route-stops -- stop-routes -i data/routes.json
 公共交通オープンデータセンターのアクセストークンを `ODPT_ACCESS_TOKEN` に設定して実行します。
 
 ```bash
-ODPT_ACCESS_TOKEN=YOUR_TOKEN npm --silent start -- stops 京都駅
-ODPT_ACCESS_TOKEN=YOUR_TOKEN npm --silent start -- routes 206
-ODPT_ACCESS_TOKEN=YOUR_TOKEN npm --silent start -- timetable 京都駅 206
-ODPT_ACCESS_TOKEN=YOUR_TOKEN npm --silent start -- download
+ODPT_ACCESS_TOKEN=YOUR_TOKEN npm start -- stops 京都駅
+ODPT_ACCESS_TOKEN=YOUR_TOKEN npm start -- routes 206
+ODPT_ACCESS_TOKEN=YOUR_TOKEN npm start -- timetable 京都駅 206
+ODPT_ACCESS_TOKEN=YOUR_TOKEN npm start -- download
 ```
 
 `download` コマンドを使うと、最新版 GTFS を `data/cache/kyoto-city-bus-gtfs.zip` に保存します。
