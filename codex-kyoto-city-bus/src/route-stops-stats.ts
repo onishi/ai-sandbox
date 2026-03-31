@@ -317,14 +317,33 @@ function printStopRouteReachableStops(data: RouteStopsFile, stopQuery?: string):
 function main(): void {
   const { command, inputPath, commandArgs, verbose } = parseArgs(process.argv.slice(2));
 
-  const resolvedInputPath =
-    command === "routes-by-stop"
-      ? commandArgs.length >= 2
-        ? commandArgs[1]
-        : inputPath
-      : commandArgs.length >= 1
-        ? commandArgs[0]
-        : inputPath;
+  let resolvedInputPath = inputPath;
+
+  if (command === "stop-routes") {
+    if (commandArgs.length >= 1) {
+      resolvedInputPath = commandArgs[0];
+    }
+  } else if (command === "route-stops-count") {
+    if (commandArgs.length >= 1) {
+      resolvedInputPath = commandArgs[0];
+    }
+  } else if (command === "reachable-stops-count") {
+    if (commandArgs.length >= 1) {
+      resolvedInputPath = commandArgs[0];
+    }
+  } else if (command === "one-transfer-reachable-stops-count") {
+    if (commandArgs.length >= 1) {
+      resolvedInputPath = commandArgs[0];
+    }
+  } else if (command === "routes-by-stop") {
+    if (commandArgs.length >= 2) {
+      resolvedInputPath = commandArgs[1];
+    }
+  } else if (command === "stop-route-reachable-stops") {
+    if (commandArgs.length >= 2) {
+      resolvedInputPath = commandArgs[1];
+    }
+  }
 
   logVerbose(verbose, `入力ファイル: ${resolvedInputPath}`);
   const data = readRouteStopsFile(resolvedInputPath);
