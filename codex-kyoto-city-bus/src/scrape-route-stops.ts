@@ -20,6 +20,12 @@ const ROUTE_INDEX_URL =
 const DEFAULT_OUTPUT_PREFIX = "data/kyoto-city-route-stops";
 const REQUEST_INTERVAL_MS = 1000;
 
+function logVerbose(verbose: boolean, message: string): void {
+  if (verbose) {
+    console.error(message);
+  }
+}
+
 function printHelp(): void {
   console.log(`使用法: npx ts-node src/scrape-route-stops.ts [options] [route...]
 
@@ -27,6 +33,7 @@ function printHelp(): void {
 
 options:
   -o, --output <file>  出力先ファイル。省略時は系統名入りのファイル名を自動生成
+  --verbose            詳細ログを stderr に表示
   -h, --help           ヘルプを表示
 
 examples:
@@ -163,9 +170,10 @@ function extractStops(routeHtml: string): string[] {
   return unique(stops);
 }
 
-function parseArgs(args: string[]): { outputPath?: string; filters: string[] } {
+function parseArgs(args: string[]): { outputPath?: string; filters: string[]; verbose: boolean } {
   let outputPath: string | undefined;
   const filters: string[] = [];
+  let verbose = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -180,10 +188,14 @@ function parseArgs(args: string[]): { outputPath?: string; filters: string[] } {
       printHelp();
       process.exit(0);
     }
+    if (arg === "--verbose") {
+      verbose = true;
+      continue;
+    }
     filters.push(arg);
   }
 
-  return { outputPath, filters };
+  return { outputPath, filters, verbose };
 }
 
 function matchesFilter(route: RouteStops, filters: string[]): boolean {
@@ -225,7 +237,7 @@ async function scrapeAllRouteStops(withThrottle: boolean): Promise<RouteStops[]>
 }
 
 async function main(): Promise<void> {
-  const { outputPath, filters } = parseArgs(process.argv.slice(2));
+  const { outputPath, filters, verbose } = parseArgs(process.argv.slice(2));
   const resolvedOutputPath = outputPath ?? buildDefaultOutputPath(filters);
   const withThrottle = filters.length === 0;
   const routes = (await scrapeAllRouteStops(withThrottle)).filter((route) =>
@@ -242,8 +254,8 @@ async function main(): Promise<void> {
   fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
   fs.writeFileSync(resolvedOutputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
 
-  console.log(`保存しました: ${resolvedOutputPath}`);
-  console.log(`系統数: ${routes.length}`);
+  logVerbose(verbose, `保存しました: ${resolvedOutputPath}`);
+  logVerbose(verbose, `系統数: ${routes.length}`);
 }
 
 main().catch((error) => {

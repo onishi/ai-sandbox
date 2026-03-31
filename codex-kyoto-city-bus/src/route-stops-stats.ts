@@ -17,6 +17,12 @@ interface RouteStopsFile {
 
 const DEFAULT_INPUT_PATH = "data/kyoto-city-route-stops-all.json";
 
+function logVerbose(verbose: boolean, message: string): void {
+  if (verbose) {
+    console.error(message);
+  }
+}
+
 function printHelp(): void {
   console.log(`使用法: npx ts-node src/route-stops-stats.ts <command> [options] [input.json]
 
@@ -34,6 +40,7 @@ command:
 
 options:
   -i, --input <file>  入力 JSON ファイル。省略時は data/kyoto-city-route-stops-all.json
+  --verbose           詳細ログを stderr に表示
   -h, --help          ヘルプを表示
 
 examples:
@@ -46,7 +53,12 @@ examples:
   npx ts-node src/route-stops-stats.ts stop-routes -i data/routes.json`);
 }
 
-function parseArgs(args: string[]): { command: string; inputPath: string; commandArgs: string[] } {
+function parseArgs(args: string[]): {
+  command: string;
+  inputPath: string;
+  commandArgs: string[];
+  verbose: boolean;
+} {
   const command = args[0];
   if (!command || command === "-h" || command === "--help") {
     printHelp();
@@ -55,6 +67,7 @@ function parseArgs(args: string[]): { command: string; inputPath: string; comman
 
   let inputPath = DEFAULT_INPUT_PATH;
   const commandArgs: string[] = [];
+  let verbose = false;
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -69,10 +82,14 @@ function parseArgs(args: string[]): { command: string; inputPath: string; comman
       }
       continue;
     }
+    if (arg === "--verbose") {
+      verbose = true;
+      continue;
+    }
     commandArgs.push(arg);
   }
 
-  return { command, inputPath, commandArgs };
+  return { command, inputPath, commandArgs, verbose };
 }
 
 function readRouteStopsFile(inputPath: string): RouteStopsFile {
@@ -267,7 +284,7 @@ function printRoutesByStop(data: RouteStopsFile, stopQuery: string): void {
 }
 
 function main(): void {
-  const { command, inputPath, commandArgs } = parseArgs(process.argv.slice(2));
+  const { command, inputPath, commandArgs, verbose } = parseArgs(process.argv.slice(2));
 
   const resolvedInputPath =
     command === "routes-by-stop"
@@ -278,6 +295,7 @@ function main(): void {
         ? commandArgs[0]
         : inputPath;
 
+  logVerbose(verbose, `入力ファイル: ${resolvedInputPath}`);
   const data = readRouteStopsFile(resolvedInputPath);
 
   if (command === "stop-routes") {

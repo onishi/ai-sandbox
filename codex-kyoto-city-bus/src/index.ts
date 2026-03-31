@@ -32,6 +32,12 @@ const CACHE_DIR = path.resolve(__dirname, "../data/cache");
 const CACHE_ZIP_PATH = path.join(CACHE_DIR, "kyoto-city-bus-gtfs.zip");
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+function logVerbose(verbose: boolean, message: string): void {
+  if (verbose) {
+    console.error(message);
+  }
+}
+
 function printHelp(): void {
   console.log(`使用法: npx ts-node src/index.ts <command> [args]
 
@@ -53,7 +59,11 @@ command:
 
 環境変数:
   ODPT_ACCESS_TOKEN
-      公共交通オープンデータセンターのアクセストークン`);
+      公共交通オープンデータセンターのアクセストークン
+
+オプション:
+  --verbose
+      詳細ログを stderr に表示`);
 }
 
 function ensureCacheDir(): void {
@@ -389,7 +399,10 @@ async function loadCoreGtfsFiles(): Promise<{
 }
 
 async function main(): Promise<void> {
-  const [, , command, ...args] = process.argv;
+  const rawArgs = process.argv.slice(2);
+  const verbose = rawArgs.includes("--verbose");
+  const args = rawArgs.filter((arg) => arg !== "--verbose");
+  const command = args[0];
 
   if (!command || command === "--help" || command === "-h") {
     printHelp();
@@ -398,7 +411,7 @@ async function main(): Promise<void> {
 
   if (command === "download") {
     const zipPath = await ensureGtfsZip(true);
-    console.log(`ダウンロードしました: ${zipPath}`);
+    logVerbose(verbose, `ダウンロードしました: ${zipPath}`);
     return;
   }
 
