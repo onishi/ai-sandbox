@@ -18,5 +18,6 @@ export interface Zoo {
   closedDays: string;
   admission: string;
   website: string;
+  wikipediaUrl?: string;
   features: string[];
 }

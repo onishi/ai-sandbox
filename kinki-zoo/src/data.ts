@@ -13,6 +13,7 @@ export const zoos: Zoo[] = [
     closedDays: "毎週月曜日（祝日の場合は翌平日）、年末年始",
     admission: "大人500円、中学生以下無料",
     website: "https://www.tennojizoo.jp/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E5%A4%A9%E7%8E%8B%E5%AF%BA%E5%8B%95%E7%89%A9%E5%9C%92",
     features: ["アフリカサバンナ", "大型類人猿", "夜行性動物館"],
   },
   {
@@ -27,6 +28,7 @@ export const zoos: Zoo[] = [
     closedDays: "毎週火曜日（祝日の場合は翌平日）、年末年始",
     admission: "無料",
     website: "https://www.city.ikeda.osaka.jp/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E6%B1%A0%E7%94%B0%E5%B8%82%E7%AB%8B%E3%81%93%E3%81%A9%E3%82%82%E5%8B%95%E7%89%A9%E5%9C%92",
     features: ["ポニー乗馬", "ふれあいコーナー"],
   },
   {
@@ -41,6 +43,7 @@ export const zoos: Zoo[] = [
     closedDays: "毎週月曜日（祝日の場合は翌平日）、年末年始",
     admission: "大人750円、中学生以下無料",
     website: "https://www5.city.kyoto.jp/zoo/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E4%BA%AC%E9%83%BD%E5%B8%82%E5%8B%95%E7%89%A9%E5%9C%92",
     features: ["ゴリラ", "ニシローランドゴリラ", "もぐもぐタイム"],
   },
   {
@@ -55,6 +58,7 @@ export const zoos: Zoo[] = [
     closedDays: "毎週水曜日（祝日の場合は翌平日）、年末年始",
     admission: "大人600円、中学生以下無料",
     website: "https://www.city.kobe.lg.jp/oji-zoo/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E7%8E%8B%E5%AD%90%E5%8B%95%E7%89%A9%E5%9C%92",
     features: ["ジャイアントパンダ", "コアラ", "ナイトズー（夏季）"],
   },
   {
@@ -69,6 +73,7 @@ export const zoos: Zoo[] = [
     closedDays: "年末年始",
     admission: "大人210円、中学生以下無料",
     website: "https://www.city.himeji.lg.jp/zoo/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E5%A7%AB%E8%B7%AF%E5%B8%82%E7%AB%8B%E5%8B%95%E7%89%A9%E5%9C%92",
     features: ["チンパンジー", "ホワイトライオン", "姫路城隣接"],
   },
   {
@@ -83,6 +88,7 @@ export const zoos: Zoo[] = [
     closedDays: "年中無休（悪天候を除く）",
     admission: "大人1,600円、小中学生900円",
     website: "https://www.england-hill.com/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E3%82%A4%E3%83%B3%E3%82%B0%E3%83%A9%E3%83%B3%E3%83%89%E3%81%AE%E4%B8%98",
     features: ["コアラ", "羊の放牧", "淡路島"],
   },
   {
@@ -97,6 +103,7 @@ export const zoos: Zoo[] = [
     closedDays: "なし",
     admission: "無料（鹿せんべい販売あり）",
     website: "https://www.pref.nara.jp/1708.htm",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E5%A5%88%E8%89%AF%E5%85%AC%E5%9C%92",
     features: ["野生のシカ", "世界遺産", "東大寺隣接"],
   },
   {
@@ -111,6 +118,7 @@ export const zoos: Zoo[] = [
     closedDays: "不定休（公式サイト参照）",
     admission: "大人5,000円、中学生3,800円、小学生3,200円",
     website: "https://www.aws-s.com/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E3%82%A2%E3%83%89%E3%83%99%E3%83%B3%E3%83%81%E3%83%A3%E3%83%BC%E3%83%AF%E3%83%BC%E3%83%AB%E3%83%89",
     features: ["ジャイアントパンダ", "サファリワールド", "イルカショー"],
   },
   {
@@ -125,6 +133,7 @@ export const zoos: Zoo[] = [
     closedDays: "12月29日〜1月1日",
     admission: "無料",
     website: "https://www.city.wakayama.wakayama.jp/",
+    wikipediaUrl: "https://ja.wikipedia.org/wiki/%E5%92%8C%E6%AD%8C%E5%B1%B1%E5%9F%8E%E5%8B%95%E7%89%A9%E5%9C%92",
     features: ["白いライオン", "白いトラ", "和歌山城隣接"],
   },
 ];

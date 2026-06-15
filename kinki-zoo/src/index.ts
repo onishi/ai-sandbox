@@ -36,9 +36,12 @@ function filterZoos(pref?: string | null): Zoo[] {
 function renderZooCard(zoo: Zoo): string {
   const prefLabel = PREF_LABELS[zoo.prefecture];
   const features = zoo.features.map((f) => `<span class="tag">${f}</span>`).join("");
+  const wikiLink = zoo.wikipediaUrl
+    ? `<a class="wiki-link" href="${zoo.wikipediaUrl}" target="_blank" rel="noopener noreferrer">Wikipedia</a>`
+    : "";
   return `
     <article class="zoo-card" id="${zoo.id}">
-      <h2><a href="${zoo.website}" target="_blank" rel="noopener noreferrer">${zoo.name}</a></h2>
+      <h2><a href="${zoo.website}" target="_blank" rel="noopener noreferrer">${zoo.name}</a>${wikiLink}</h2>
       <p class="kana">${zoo.nameKana}</p>
       <dl>
         <dt>都道府県</dt><dd>${prefLabel}</dd>
@@ -87,6 +90,8 @@ function renderHtml(filteredZoos: Zoo[], activePref: string | null): string {
     .zoo-card h2 { font-size: 1.1rem; margin-bottom: 0.25rem; }
     .zoo-card h2 a { color: #2d6a4f; text-decoration: none; }
     .zoo-card h2 a:hover { text-decoration: underline; }
+    .wiki-link { font-size: 0.7rem; font-weight: normal; margin-left: 0.5rem; color: #888; border: 1px solid #ccc; border-radius: 3px; padding: 0.1rem 0.4rem; vertical-align: middle; text-decoration: none; }
+    .wiki-link:hover { background: #f0f0f0; }
     .kana { font-size: 0.8rem; color: #888; margin-bottom: 0.75rem; }
     dl { display: grid; grid-template-columns: 5.5em 1fr; gap: 0.2rem 0.5rem; font-size: 0.85rem; }
     dt { color: #666; font-weight: bold; }
