@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SONIC RAY - 横スクロールシューティング</title>
 <style>
   html, body {
@@ -23,7 +23,7 @@
     gap: 12px; margin-top: 6px;
   }
   #ver { color: #445; font-size: 11px; }
-  #padToggle {
+  #padToggle, #sndToggle {
     background: #17202f; color: #9ab4cc; border: 1px solid #33465e;
     border-radius: 6px; font: 12px 'Courier New', monospace; padding: 5px 12px;
     cursor: pointer;
@@ -75,10 +75,11 @@
       <div id="btnA" class="tbtn">SHOT</div>
     </div>
   </div>
-  <div id="help">移動: ←↑→↓ / WASD | ショット: Z or SPACE (押しっぱなし可) | 決定: ENTER</div>
+  <div id="help">移動: ←↑→↓ / WASD | ショット: Z or SPACE (押しっぱなし可) | 決定: ENTER | M: ミュート</div>
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
-    <span id="ver">v4</span>
+    <button id="sndToggle" type="button">🔊</button>
+    <span id="ver">v5</span>
   </div>
 </div>
 <script>
@@ -102,12 +103,59 @@ function overlap(a, b) {
   return Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
 }
 
+// ---------------- サウンド (WebAudio) ----------------
+let actx = null, muted = false;
+function initAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(freq, dur, type, vol, slide) {
+  if (!actx || muted) return;
+  const t0 = actx.currentTime;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.08, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noiseBurst(dur, vol) {
+  if (!actx || muted) return;
+  const n = Math.floor(actx.sampleRate * dur);
+  const buf = actx.createBuffer(1, n, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = actx.createBufferSource(); s.buffer = buf;
+  const g = actx.createGain(); g.gain.value = vol || 0.15;
+  s.connect(g); g.connect(actx.destination); s.start();
+}
+const SFX = {
+  shot:    () => tone(880, 0.05, 'square', 0.02, -400),
+  boom:    () => noiseBurst(0.18, 0.1),
+  bigboom: () => { noiseBurst(0.55, 0.2); tone(70, 0.55, 'sawtooth', 0.12, -40); },
+  item:    () => { tone(660, 0.08, 'square', 0.06); setTimeout(() => tone(990, 0.12, 'square', 0.06), 70); },
+  oneup:   () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.1, 'square', 0.07), i * 80)),
+  die:     () => tone(400, 0.5, 'sawtooth', 0.1, -350),
+  warn:    () => { tone(220, 0.25, 'sawtooth', 0.07); setTimeout(() => tone(170, 0.25, 'sawtooth', 0.07), 260); },
+  ok:      () => tone(1320, 0.07, 'square', 0.05),
+  clear:   () => [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => tone(f, 0.14, 'triangle', 0.08), i * 100)),
+};
+function setMuted(m) {
+  muted = m;
+  document.getElementById('sndToggle').textContent = muted ? '🔇' : '🔊';
+}
+document.getElementById('sndToggle').addEventListener('click', () => { initAudio(); setMuted(!muted); });
+
 // ---------------- 入力 ----------------
 const keys = {};
 let enterEdge = false;
 addEventListener('keydown', e => {
+  initAudio();
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   if (e.key === 'Enter' && !keys['Enter']) enterEdge = true;
+  if (e.key === 'm' || e.key === 'M') setMuted(!muted);
   keys[e.key] = true;
   if (e.key.length === 1) keys[e.key.toLowerCase()] = true;
 });
@@ -140,8 +188,9 @@ if (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0 ||
 }
 // 判定漏れ対策: 実際に画面がタッチされたら必ず表示する(切替ボタン上のタッチは除く)
 const notOnToggle = e => !(e.target && e.target.closest && e.target.closest('#bar'));
-addEventListener('touchstart', e => { if (notOnToggle(e)) enablePad(); }, { passive: true });
+addEventListener('touchstart', e => { initAudio(); if (notOnToggle(e)) enablePad(); }, { passive: true });
 addEventListener('pointerdown', e => {
+  initAudio();
   if (e.pointerType === 'touch' && notOnToggle(e)) enablePad();
 }, { passive: true });
 // 手動切り替えボタン(自動判定が全滅した場合の保険)
@@ -248,10 +297,57 @@ const STAGES = [
       '岩壁が牙のように迫り、',
       '闇の奥では無数のセンサーがこちらを見ている。',
       '',
-      '―― 狭い通路を抜け、〈巣〉の入口へ。',
+      '―― 狭い通路を抜け、地の底を突き進め。',
     ],
     clearStory: [
       '洞窟の主〈深淵の眼〉を撃破。',
+      '',
+      'リオ「出口の先は……峡谷ごと凍りついている。',
+      '      センサーに巨大な熱源反応、これは……生物?」',
+      '',
+      '管制「〈ヴォイド〉が生み出した守護獣がいるはず。',
+      '      氷の牙に気をつけて」',
+    ],
+  },
+  {
+    name: 'STAGE 3  氷結峡谷フロストキャニオン',
+    length: 6800, scroll: 1.5, seed: 404,
+    sky: ['#0e1a30', '#33507a'], far: '#4a6a94', ground: '#8fb4d8', groundEdge: '#e8f4ff',
+    caveCeil: true,
+    story: [
+      '洞窟を抜けた先に広がるのは、',
+      'すべてが凍てつく白銀の峡谷。',
+      '',
+      '鋭い氷柱が上下から牙のように突き出し、',
+      '吹雪の奥で、何かが目を覚ます。',
+      '',
+      '―― 氷の谷を駆け抜けろ。',
+    ],
+    clearStory: [
+      '守護獣〈氷竜アイスヴァーン〉を撃破。',
+      '',
+      'リオ「要塞はこの先だ。……だが、雲行きが怪しい」',
+      '',
+      '管制「巨大な雷雲が要塞への空路を覆っている。',
+      '      〈ヴォイド〉の気象兵器よ。乱気流に注意して」',
+    ],
+  },
+  {
+    name: 'STAGE 4  嵐の空域ストームスカイ',
+    length: 7000, scroll: 1.7, seed: 505,
+    sky: ['#141420', '#2e3448'], far: '#3a4058', ground: '#46586e', groundEdge: '#90aac4',
+    caveCeil: false,
+    story: [
+      '黒雲が渦巻き、稲妻が空を裂く。',
+      '〈ヴォイド〉の気象兵器が生んだ人工の嵐。',
+      '',
+      '乱気流が機体を揺らし、',
+      '雲間から敵の編隊が次々と襲いかかる。',
+      '',
+      '―― 嵐を越え、要塞の眼前へ。',
+    ],
+    clearStory: [
+      '〈嵐の暴君テンペスト〉を撃破。雲が晴れていく。',
       '',
       'リオ「見えた……これが〈ヴォイド〉の心臓部、',
       '      機械要塞コア・シタデルか」',
@@ -261,8 +357,8 @@ const STAGES = [
     ],
   },
   {
-    name: 'STAGE 3  機械要塞コア・シタデル',
-    length: 7000, scroll: 1.6, seed: 303,
+    name: 'STAGE 5  機械要塞コア・シタデル',
+    length: 7400, scroll: 1.7, seed: 303,
     sky: ['#1a0508', '#2e0a10'], far: '#4a1a22', ground: '#4d3038', groundEdge: '#d86a5a',
     caveCeil: true,
     story: [
@@ -292,6 +388,8 @@ const ENDING = [
 // ---------------- 地形 ----------------
 const TSTEP = 16;
 let terrain = null; // { floor: [], ceil: [], n }
+let arenaT = 0;     // ボス戦時に地形が消えて開けたアリーナになる (0=通常, 1=アリーナ)
+const arenaEase = () => arenaT * arenaT * (3 - 2 * arenaT);
 function genTerrain(si) {
   const st = STAGES[si];
   const rng = mulberry32(st.seed);
@@ -299,7 +397,6 @@ function genTerrain(si) {
   const floor = new Array(n), ceil = new Array(n);
   if (si === 0) {
     // なだらかな丘 + 時々山
-    let base = 380;
     for (let i = 0; i < n; i++) {
       const x = i * TSTEP;
       let y = 385 + Math.sin(x * 0.004) * 22 + Math.sin(x * 0.011 + 2) * 14;
@@ -318,13 +415,32 @@ function genTerrain(si) {
       floor[i] = clamp(mid + gap / 2 + (rng() - 0.5) * 14, 120, 440);
       ceil[i]  = clamp(mid - gap / 2 + (rng() - 0.5) * 14, 10, 330);
     }
+  } else if (si === 2) {
+    // 氷結峡谷: 上下から交互に突き出す鋭い氷柱
+    for (let i = 0; i < n; i++) {
+      const x = i * TSTEP;
+      let f = 398 + Math.sin(x * 0.005) * 16;
+      let c = 34 + Math.sin(x * 0.004 + 2) * 14;
+      const sp = i % 24;
+      if (sp < 5) f -= (2.5 - Math.abs(sp - 2.5)) * 52;
+      const sc = (i + 12) % 24;
+      if (sc < 5) c += (2.5 - Math.abs(sc - 2.5)) * 52;
+      floor[i] = clamp(f + (rng() - 0.5) * 8, 200, 440);
+      ceil[i] = clamp(c + (rng() - 0.5) * 8, 6, 260);
+    }
+  } else if (si === 3) {
+    // 嵐の空域: 低くうねる雲海。上は開けた空
+    for (let i = 0; i < n; i++) {
+      const x = i * TSTEP;
+      floor[i] = clamp(408 + Math.sin(x * 0.006) * 16 + Math.sin(x * 0.0021 + 1) * 12 + (rng() - 0.5) * 8, 340, 442);
+      ceil[i] = -50;
+    }
   } else {
-    // 機械要塞: 段差状のブロック地形と垂直シャフト
+    // 機械要塞: 段差状のブロック地形と隔壁
     let f = 380, c = 60;
     for (let i = 0; i < n; i++) {
       const x = i * TSTEP;
       if (i % 10 === 0) { f = 300 + Math.floor(rng() * 4) * 35; c = 40 + Math.floor(rng() * 4) * 30; }
-      // 時々、上下から突き出す隔壁
       const block = Math.floor(x / 1300);
       if (block % 2 === 1) {
         const t = (x % 1300) / 1300;
@@ -338,12 +454,14 @@ function genTerrain(si) {
 function floorAt(wx) {
   const i = clamp(Math.floor(wx / TSTEP), 0, terrain.n - 2);
   const t = (wx - i * TSTEP) / TSTEP;
-  return terrain.floor[i] * (1 - t) + terrain.floor[i + 1] * t;
+  const raw = terrain.floor[i] * (1 - t) + terrain.floor[i + 1] * t;
+  return raw + (490 - raw) * arenaEase(); // ボス戦時は床が画面外へ沈む
 }
 function ceilAt(wx) {
   const i = clamp(Math.floor(wx / TSTEP), 0, terrain.n - 2);
   const t = (wx - i * TSTEP) / TSTEP;
-  return terrain.ceil[i] * (1 - t) + terrain.ceil[i + 1] * t;
+  const raw = terrain.ceil[i] * (1 - t) + terrain.ceil[i + 1] * t;
+  return raw + (-90 - raw) * arenaEase(); // ボス戦時は天井が画面外へ引き上がる
 }
 function hitTerrain(wx, y, pad) {
   return y + pad > floorAt(wx) || y - pad < ceilAt(wx);
@@ -375,28 +493,44 @@ function genEvents(si) {
   const st = STAGES[si];
   const rng = mulberry32(st.seed * 7 + 5);
   events = [];
-  let x = 500;
+  let x = 450;
   while (x < st.length - 900) {
     const r = rng();
     if (si === 0) {
-      if (r < 0.30) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.55) events.push({ x, type: 'zako', count: 3 });
-      else if (r < 0.75) events.push({ x, type: 'turret' });
+      if (r < 0.32) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.62) events.push({ x, type: 'zako', count: 3 });
+      else if (r < 0.82) events.push({ x, type: 'turret' });
       else events.push({ x, type: 'hover' });
     } else if (si === 1) {
-      if (r < 0.25) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.45) events.push({ x, type: 'stalactite', count: 2 + Math.floor(rng() * 2) });
-      else if (r < 0.65) events.push({ x, type: 'zako', count: 4 });
-      else if (r < 0.85) events.push({ x, type: 'turret' });
+      if (r < 0.27) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.47) events.push({ x, type: 'stalactite', count: 2 + Math.floor(rng() * 2) });
+      else if (r < 0.68) events.push({ x, type: 'zako', count: 4 });
+      else if (r < 0.87) events.push({ x, type: 'turret' });
       else events.push({ x, type: 'hover' });
+    } else if (si === 2) {
+      if (r < 0.26) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.46) events.push({ x, type: 'stalactite', count: 3 });
+      else if (r < 0.66) events.push({ x, type: 'zako', count: 4, fast: true });
+      else if (r < 0.86) events.push({ x, type: 'diver' });
+      else events.push({ x, type: 'turret' });
+    } else if (si === 3) {
+      if (r < 0.24) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.50) events.push({ x, type: 'diver' });
+      else if (r < 0.72) events.push({ x, type: 'zako', count: 5, fast: true });
+      else if (r < 0.90) events.push({ x, type: 'hover' });
+      else events.push({ x, type: 'zako', count: 3 });
     } else {
-      if (r < 0.22) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.45) events.push({ x, type: 'turret', dual: true });
-      else if (r < 0.62) events.push({ x, type: 'hover' });
-      else if (r < 0.82) events.push({ x, type: 'zako', count: 4, fast: true });
+      if (r < 0.20) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.42) events.push({ x, type: 'turret', dual: true });
+      else if (r < 0.60) events.push({ x, type: 'hover' });
+      else if (r < 0.80) events.push({ x, type: 'zako', count: 4, fast: true });
       else events.push({ x, type: 'crusher' });
     }
-    x += 380 + rng() * 320;
+    x += 250 + rng() * 190;
+  }
+  // 定期的にアイテム運搬機(倒すと必ずアイテムを落とす)
+  for (let cx = 750; cx < st.length - 1000; cx += 620 + rng() * 250) {
+    events.push({ x: cx, type: 'carrier' });
   }
   events.sort((a, b) => a.x - b.x);
 }
@@ -452,35 +586,49 @@ function spawnEvent(ev) {
       enemies.push({ type: 'crusher', wx, x: 0, y: 100 + Math.random() * 200, w: 34, h: 60, hp: 999, invuln: true, t: 0, score: 0 });
       break;
     }
+    case 'diver': {
+      for (let i = 0; i < 2; i++) {
+        enemies.push({
+          type: 'diver', x: W - 200 + i * 90 + Math.random() * 60, y: -20 - i * 40,
+          w: 20, h: 16, hp: 1, vx: -1.2, vy: 3.4, t: 0, score: 150,
+        });
+      }
+      break;
+    }
+    case 'carrier': {
+      enemies.push({
+        type: 'carrier', x: W + 40, y: 60 + Math.random() * 300, w: 26, h: 18,
+        hp: 2, vx: -1.6, t: 0, score: 300, carry: true,
+      });
+      break;
+    }
   }
 }
 
 // ---------------- ボス ----------------
+const BOSS_DEFS = [
+  { kind: 'gunship', name: '装甲飛行艇 アイアンロック',        hp: 70,  w: 110, h: 70,  entryX: 650 },
+  { kind: 'eye',     name: '洞窟の主 深淵の眼',                hp: 95,  w: 90,  h: 90,  entryX: 700 },
+  { kind: 'dragon',  name: '氷竜 アイスヴァーン',              hp: 115, w: 64,  h: 64,  entryX: 690, t0: 92 },
+  { kind: 'tempest', name: '嵐の暴君 テンペスト',              hp: 130, w: 80,  h: 80,  entryX: 690, t0: 79 },
+  { kind: 'core',    name: '中枢防衛システム コア・シタデル', hp: 160, w: 120, h: 150, entryX: 660 },
+];
 function spawnBoss(si) {
   bossWarnT = 120;
-  if (si === 0) {
-    boss = {
-      name: '装甲飛行艇 アイアンロック', hp: 70, maxHp: 70,
-      x: W + 100, y: 200, w: 110, h: 70, t: 0, si,
-    };
-  } else if (si === 1) {
-    boss = {
-      name: '洞窟の主 深淵の眼', hp: 90, maxHp: 90,
-      x: W + 100, y: 225, w: 90, h: 90, t: 0, si,
-    };
-  } else {
-    boss = {
-      name: '中枢防衛システム コア・シタデル', hp: 130, maxHp: 130,
-      x: W + 140, y: 225, w: 120, h: 150, t: 0, si, open: 0,
-    };
-  }
+  SFX.warn();
+  const d = BOSS_DEFS[si];
+  boss = { ...d, maxHp: d.hp, x: W + 120, y: 225, t: d.t0 || 0, entered: false, trail: [], open: 0 };
 }
 function updateBoss() {
   const b = boss;
   b.t++;
-  if (b.x > W - 150) { b.x -= 1.5; return; } // 登場
+  if (!b.entered) {
+    b.x -= 2;
+    if (b.x <= b.entryX) b.entered = true;
+    else return;
+  }
   const aimAng = Math.atan2(player.y - b.y, player.x - b.x);
-  if (b.si === 0) {
+  if (b.kind === 'gunship') {
     b.y = 200 + Math.sin(b.t * 0.02) * 120;
     if (b.t % 75 === 0) {
       for (let i = -1; i <= 1; i++) {
@@ -489,11 +637,11 @@ function updateBoss() {
       }
     }
     if (b.t % 130 === 0) {
-      ebullets.push({ x: b.x - 20, y: b.y + 30, vx: -2.2, vy: 1.5, r: 6, bomb: true });
+      ebullets.push({ x: b.x - 20, y: b.y + 30, vx: -2.2, vy: 1.5, r: 6 });
       ebullets.push({ x: b.x - 20, y: b.y - 30, vx: -2.2, vy: -1.5, r: 6 });
     }
-  } else if (b.si === 1) {
-    b.x = W - 150 + Math.sin(b.t * 0.013) * 60;
+  } else if (b.kind === 'eye') {
+    b.x = 650 + Math.sin(b.t * 0.013) * 60;
     b.y = 225 + Math.sin(b.t * 0.021) * 110;
     if (b.t % 100 === 0) {
       for (let i = 0; i < 8; i++) {
@@ -505,12 +653,47 @@ function updateBoss() {
       ebullets.push({ x: b.x, y: b.y, vx: -2, vy: 0, r: 6, homing: 120 });
       ebullets.push({ x: b.x, y: b.y - 30, vx: -2, vy: 0, r: 6, homing: 120 });
     }
-  } else {
+  } else if (b.kind === 'dragon') {
+    b.x = 600 + Math.sin(b.t * 0.017) * 90;
+    b.y = 225 + Math.sin(b.t * 0.031) * 150;
+    b.trail.unshift({ x: b.x, y: b.y });
+    if (b.trail.length > 90) b.trail.pop();
+    if (b.t % 80 === 0) {
+      for (let i = -1; i <= 1; i++) {
+        const a = aimAng + i * 0.2;
+        ebullets.push({ x: b.x - 20, y: b.y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, r: 5 });
+      }
+    }
+    if (b.t % 140 === 60) {
+      for (let k = 0; k < 3; k++) {
+        ebullets.push({ x: 120 + Math.random() * 520, y: -10, vx: 0, vy: 2.6 + Math.random(), r: 5 });
+      }
+    }
+  } else if (b.kind === 'tempest') {
+    b.x = 620 + Math.sin(b.t * 0.02) * 70;
+    b.y = 225 + Math.cos(b.t * 0.027) * 130;
+    if (b.t % 70 === 0) {
+      for (let i = -1; i <= 1; i += 2) {
+        const a = aimAng + i * 0.14;
+        ebullets.push({ x: b.x - 20, y: b.y, vx: Math.cos(a) * 3.2, vy: Math.sin(a) * 3.2, r: 5 });
+      }
+    }
+    if (b.t % 110 === 50) {
+      // 上下へ走る稲妻弾
+      ebullets.push({ x: b.x - 10, y: b.y, vx: -1.5, vy: 5.5, r: 4 });
+      ebullets.push({ x: b.x - 10, y: b.y, vx: -1.5, vy: -5.5, r: 4 });
+    }
+    if (b.t % 190 === 90) {
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        ebullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * 2.2, vy: Math.sin(a) * 2.2, r: 4 });
+      }
+    }
+  } else { // core
     b.y = 225 + Math.sin(b.t * 0.008) * 60;
     b.open = (Math.floor(b.t / 150) % 2 === 1) ? 1 : 0; // 開閉: 開いている時だけダメージ
     if (b.open && b.t % 40 === 0) {
-      const a = aimAng;
-      ebullets.push({ x: b.x - 55, y: b.y, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4, r: 5 });
+      ebullets.push({ x: b.x - 55, y: b.y, vx: Math.cos(aimAng) * 4, vy: Math.sin(aimAng) * 4, r: 5 });
     }
     if (b.t % 90 === 0) {
       for (let i = -2; i <= 2; i++) {
@@ -527,12 +710,14 @@ function updateBoss() {
 }
 function bossHit(dmg) {
   const b = boss;
-  if (b.si === 2 && !b.open) return false; // 閉じている間は無敵
+  if (b.kind === 'core' && !b.open) return false; // 閉じている間は無敵
   b.hp -= dmg;
   if (b.hp <= 0) {
-    addScore(5000 * (b.si + 1));
+    addScore(5000 * (stageIdx + 1));
     explode(b.x, b.y, 40, '#ffd080');
+    SFX.bigboom();
     shakeT = 40; flashT = 12;
+    ebullets = [];
     boss = null;
     setTimeout2(90, () => stageClear());
   }
@@ -554,7 +739,7 @@ function explode(x, y, n, color) {
   }
 }
 function dropItem(x, y) {
-  const types = ['P', 'S', 'M', 'B'];
+  const types = ['P', 'S', 'M', 'B', 'P', 'M', 'S', 'U'];
   const t = types[itemCycle % types.length];
   itemCycle++;
   items.push({ x, y, w: 20, h: 20, type: t, t: 0 });
@@ -562,7 +747,7 @@ function dropItem(x, y) {
 
 function startStage(si) {
   stageIdx = si;
-  scrollX = 0; frame = 0;
+  scrollX = 0; frame = 0; arenaT = 0;
   bullets = []; ebullets = []; enemies = []; items = []; particles = []; timers = [];
   boss = null; bossWarnT = 0;
   genTerrain(si);
@@ -573,6 +758,7 @@ function startStage(si) {
 }
 function stageClear() {
   addScore(1000 * (stageIdx + 1) + lives * 500);
+  SFX.clear();
   if (stageIdx >= STAGES.length - 1) {
     storyLines = ENDING; storyNext = 'title'; state = 'ending';
   } else {
@@ -581,9 +767,10 @@ function stageClear() {
 }
 function playerDie() {
   if (player.inv > 0 || !player.alive) return;
-  if (player.shield > 0) { player.shield--; player.inv = 60; flashT = 4; return; }
+  if (player.shield > 0) { player.shield--; player.inv = 60; flashT = 4; SFX.boom(); return; }
   player.alive = false; player.deadT = 0;
   explode(player.x, player.y, 30, '#80ccff');
+  SFX.die();
   shakeT = 25;
   player.power = 1; player.missile = false; player.shield = 0; player.speedLv = Math.max(0, player.speedLv - 1);
 }
@@ -607,6 +794,7 @@ function updatePlayer() {
   if (inp.down()) player.y += sp;
   if (inp.left()) player.x -= sp;
   if (inp.right()) player.x += sp * 0.9;
+  if (stageIdx === 3) player.y += Math.sin(frame * 0.012) * 0.7; // 嵐の乱気流
   player.x = clamp(player.x, 20, W - 40);
   player.y = clamp(player.y, 16, H - 16);
   if (player.inv > 0) player.inv--;
@@ -616,6 +804,7 @@ function updatePlayer() {
   // ショット
   if (inp.shot() && player.cool <= 0) {
     player.cool = 9;
+    SFX.shot();
     const bx = player.x + 16, by = player.y;
     if (player.power === 1) {
       bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
@@ -626,6 +815,7 @@ function updatePlayer() {
       bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
       bullets.push({ x: bx, y: by - 3, vx: 7.6, vy: -1.6 });
       bullets.push({ x: bx, y: by + 3, vx: 7.6, vy: 1.6 });
+      if (player.power >= 4) bullets.push({ x: player.x - 14, y: by, vx: -7, vy: 0 }); // 後方ショット
     }
     if (player.missile && player.missileCool <= 0) {
       player.missileCool = 24;
@@ -644,7 +834,7 @@ function updateBullets() {
     if (b.missile) b.vy += 0.05;
   }
   bullets = bullets.filter(b => {
-    if (b.x > W + 20 || b.y < -20 || b.y > H + 20) return false;
+    if (b.x > W + 20 || b.x < -20 || b.y < -20 || b.y > H + 20) return false;
     if (hitTerrain(scrollX + b.x, b.y, 2)) {
       if (b.missile) explode(b.x, b.y, 6, '#ffcc66');
       return false;
@@ -689,7 +879,8 @@ function updateEnemies() {
         e.y = e.ceil ? ceilAt(e.wx) + 10 : floorAt(e.wx) - 10;
         if (e.x < W && e.x > 60 && e.t % 95 === 0 && player.alive) {
           const a = Math.atan2(player.y - e.y, player.x - e.x);
-          ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 2.4, vy: Math.sin(a) * 2.4, r: 4 });
+          const spd = 2.3 + stageIdx * 0.12;
+          ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: 4 });
         }
         break;
       }
@@ -698,7 +889,8 @@ function updateEnemies() {
         else if (e.phase === 1) {
           if (e.t % 70 === 0 && player.alive) {
             const a = Math.atan2(player.y - e.y, player.x - e.x);
-            ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 2.6, vy: Math.sin(a) * 2.6, r: 4 });
+            const spd = 2.5 + stageIdx * 0.12;
+            ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: 4 });
           }
           if (e.t > 260) e.phase = 2;
         }
@@ -722,6 +914,15 @@ function updateEnemies() {
         e.y += Math.sin(e.t * 0.05) * 2.4;
         e.y = clamp(e.y, ceilAt(e.wx) + 40, floorAt(e.wx) - 40);
         break;
+      case 'diver':
+        e.vy = Math.max(0.2, e.vy - 0.03);
+        e.vx = Math.max(-3.4, e.vx - 0.04);
+        e.x += e.vx; e.y += e.vy;
+        break;
+      case 'carrier':
+        e.x += e.vx;
+        e.y += Math.sin(e.t * 0.04) * 0.8;
+        break;
     }
   }
 
@@ -736,6 +937,7 @@ function updateEnemies() {
         e.hp -= b.missile ? 2 : 1;
         if (e.hp <= 0) {
           explode(e.x, e.y, 12, '#ffb060');
+          SFX.boom();
           if (!e.noScore) addScore(e.score);
           if (e.carry) dropItem(e.x, e.y);
         }
@@ -786,10 +988,11 @@ function updateItems() {
       it.got = true;
       addScore(500);
       flashT = 3;
-      if (it.type === 'P') player.power = Math.min(3, player.power + 1);
-      else if (it.type === 'S') player.speedLv = Math.min(4, player.speedLv + 1);
-      else if (it.type === 'M') player.missile = true;
-      else if (it.type === 'B') player.shield = Math.min(3, player.shield + 3);
+      if (it.type === 'P') { player.power = Math.min(4, player.power + 1); SFX.item(); }
+      else if (it.type === 'S') { player.speedLv = Math.min(4, player.speedLv + 1); SFX.item(); }
+      else if (it.type === 'M') { player.missile = true; SFX.item(); }
+      else if (it.type === 'B') { player.shield = Math.min(3, player.shield + 3); SFX.item(); }
+      else if (it.type === 'U') { lives = Math.min(6, lives + 1); SFX.oneup(); }
     }
   }
   items = items.filter(it => !it.got && it.x > -30);
@@ -805,12 +1008,18 @@ function updatePlay() {
   }
   while (events.length && events[0].x < scrollX + 10) spawnEvent(events.shift());
 
+  // ボス戦: 地形が引いていき、開けたアリーナになる
+  if (boss || bossWarnT > 0) arenaT = Math.min(1, arenaT + 0.01);
+
   updatePlayer();
   updateBullets();
   updateEnemies();
   updateItems();
   if (boss && bossWarnT <= 0) updateBoss();
-  if (bossWarnT > 0) bossWarnT--;
+  if (bossWarnT > 0) {
+    if (bossWarnT % 45 === 44) SFX.warn();
+    bossWarnT--;
+  }
 
   for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.97; p.vy *= 0.97; p.life--; }
   particles = particles.filter(p => p.life > 0);
@@ -829,11 +1038,10 @@ function drawBackground() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  // 遠景パララックス
-  ctx.fillStyle = st.far;
   const px = scrollX * 0.3;
   if (stageIdx === 0) {
     // 遠くの山
+    ctx.fillStyle = st.far;
     ctx.beginPath(); ctx.moveTo(0, H);
     for (let x = 0; x <= W; x += 20) {
       const wx = x + px;
@@ -864,6 +1072,45 @@ function drawBackground() {
       ctx.fillStyle = `rgba(150,140,255,${0.25 + tw * 0.5})`;
       ctx.fillRect(cx, cy, 3, 3);
     }
+  } else if (stageIdx === 2) {
+    // 遠くの氷峰
+    ctx.fillStyle = st.far;
+    ctx.beginPath(); ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 16) {
+      const wx = x + px;
+      ctx.lineTo(x, 300 - Math.abs(Math.sin(wx * 0.004)) * 130 - Math.sin(wx * 0.013) * 15);
+    }
+    ctx.lineTo(W, H); ctx.fill();
+    // 降る雪
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    for (let i = 0; i < 40; i++) {
+      const sx = ((i * 53 + Math.sin(frame * 0.01 + i) * 30 - scrollX * 0.4) % W + W) % W;
+      const sy = (i * 97 + frame * (1 + (i % 3) * 0.5)) % H;
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+  } else if (stageIdx === 3) {
+    // 流れる雲層
+    for (let L = 0; L < 3; L++) {
+      ctx.fillStyle = `rgba(70,76,100,${0.25 + L * 0.12})`;
+      const sp = 0.4 + L * 0.5;
+      for (let i = 0; i < 6; i++) {
+        const cx = ((i * 180 + L * 60 - scrollX * sp) % (W + 240) + W + 240) % (W + 240) - 120;
+        ctx.beginPath();
+        ctx.ellipse(cx, 70 + L * 90 + (i * 37) % 50, 90, 24, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // 稲光
+    if ((frame + 37) % 160 < 5) {
+      ctx.fillStyle = 'rgba(255,255,240,0.18)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,200,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      let lx = 100 + (frame * 7919) % 600, ly = 0;
+      ctx.moveTo(lx, ly);
+      while (ly < 300) { lx += (Math.random() - 0.5) * 60; ly += 40; ctx.lineTo(lx, ly); }
+      ctx.stroke();
+    }
   } else {
     // 遠景の構造物と警告灯
     for (let i = 0; i < 7; i++) {
@@ -876,21 +1123,21 @@ function drawBackground() {
   }
 }
 function drawTerrain() {
+  if (arenaT >= 1) return; // ボスアリーナでは地形なし
   const st = STAGES[stageIdx];
   const i0 = Math.floor(scrollX / TSTEP);
+  const iN = i0 + Math.ceil(W / TSTEP) + 1;
   // 床
   ctx.fillStyle = st.ground;
   ctx.beginPath();
   ctx.moveTo(-20, H + 20);
-  for (let i = i0; i <= i0 + Math.ceil(W / TSTEP) + 1; i++) {
-    ctx.lineTo(i * TSTEP - scrollX, terrain.floor[Math.min(i, terrain.n - 1)]);
-  }
+  for (let i = i0; i <= iN; i++) ctx.lineTo(i * TSTEP - scrollX, floorAt(i * TSTEP));
   ctx.lineTo(W + 20, H + 20);
   ctx.closePath(); ctx.fill();
   ctx.strokeStyle = st.groundEdge; ctx.lineWidth = 3;
   ctx.beginPath();
-  for (let i = i0; i <= i0 + Math.ceil(W / TSTEP) + 1; i++) {
-    const x = i * TSTEP - scrollX, y = terrain.floor[Math.min(i, terrain.n - 1)];
+  for (let i = i0; i <= iN; i++) {
+    const x = i * TSTEP - scrollX, y = floorAt(i * TSTEP);
     i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
   ctx.stroke();
@@ -899,15 +1146,13 @@ function drawTerrain() {
     ctx.fillStyle = st.ground;
     ctx.beginPath();
     ctx.moveTo(-20, -20);
-    for (let i = i0; i <= i0 + Math.ceil(W / TSTEP) + 1; i++) {
-      ctx.lineTo(i * TSTEP - scrollX, terrain.ceil[Math.min(i, terrain.n - 1)]);
-    }
+    for (let i = i0; i <= iN; i++) ctx.lineTo(i * TSTEP - scrollX, ceilAt(i * TSTEP));
     ctx.lineTo(W + 20, -20);
     ctx.closePath(); ctx.fill();
     ctx.strokeStyle = st.groundEdge;
     ctx.beginPath();
-    for (let i = i0; i <= i0 + Math.ceil(W / TSTEP) + 1; i++) {
-      const x = i * TSTEP - scrollX, y = terrain.ceil[Math.min(i, terrain.n - 1)];
+    for (let i = i0; i <= iN; i++) {
+      const x = i * TSTEP - scrollX, y = ceilAt(i * TSTEP);
       i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
@@ -961,7 +1206,6 @@ function drawEnemies() {
         break;
       case 'turret': {
         ctx.fillStyle = '#889';
-        const dir = e.ceil ? 1 : -1;
         ctx.fillRect(e.x - 13, e.y - 10, 26, 20);
         ctx.strokeStyle = '#aab'; ctx.lineWidth = 4;
         const a = Math.atan2(player.y - e.y, player.x - e.x);
@@ -977,7 +1221,7 @@ function drawEnemies() {
         ctx.fillRect(e.x - 5, e.y - 4, 10, 8);
         break;
       case 'stalactite':
-        ctx.fillStyle = '#9a8cc8';
+        ctx.fillStyle = stageIdx === 2 ? '#cfe6ff' : '#9a8cc8';
         ctx.beginPath();
         ctx.moveTo(e.x - 8, e.y - 17);
         ctx.lineTo(e.x + 8, e.y - 17);
@@ -990,13 +1234,27 @@ function drawEnemies() {
         ctx.fillStyle = (Math.floor(frame / 20) % 2) ? '#ff6050' : '#903028';
         ctx.fillRect(e.x - 6, e.y - 6, 12, 12);
         break;
+      case 'diver':
+        ctx.fillStyle = '#e0c050';
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y + 10);
+        ctx.lineTo(e.x - 9, e.y - 8);
+        ctx.lineTo(e.x + 9, e.y - 8);
+        ctx.closePath(); ctx.fill();
+        break;
+      case 'carrier':
+        ctx.fillStyle = '#ff8830';
+        ctx.fillRect(e.x - 13, e.y - 9, 26, 18);
+        ctx.fillStyle = '#602800';
+        ctx.fillRect(e.x - 4, e.y - 4, 8, 8);
+        break;
     }
   }
 }
 function drawBoss() {
   if (!boss) return;
   const b = boss;
-  if (b.si === 0) {
+  if (b.kind === 'gunship') {
     ctx.fillStyle = '#7a6858';
     ctx.beginPath();
     ctx.ellipse(b.x, b.y, 55, 32, 0, 0, Math.PI * 2); ctx.fill();
@@ -1006,7 +1264,7 @@ function drawBoss() {
     ctx.beginPath(); ctx.arc(b.x - 30, b.y, 9, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#4a3a30';
     ctx.fillRect(b.x - 10, b.y - 42, 40, 14);
-  } else if (b.si === 1) {
+  } else if (b.kind === 'eye') {
     const pulse = 1 + Math.sin(b.t * 0.08) * 0.06;
     ctx.fillStyle = '#5a4a88';
     ctx.beginPath(); ctx.arc(b.x, b.y, 45 * pulse, 0, Math.PI * 2); ctx.fill();
@@ -1021,7 +1279,37 @@ function drawBoss() {
       ctx.beginPath();
       ctx.arc(b.x + Math.cos(sa) * 58, b.y + Math.sin(sa) * 58, 8, 0, Math.PI * 2); ctx.fill();
     }
-  } else {
+  } else if (b.kind === 'dragon') {
+    // 胴体(軌跡をなぞる)
+    for (let i = Math.min(b.trail.length - 1, 84); i >= 6; i -= 6) {
+      const p = b.trail[i];
+      const r = Math.max(9, 24 - i * 0.18);
+      ctx.fillStyle = (i / 6) % 2 ? '#9cc4e8' : '#7aa8d4';
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // 頭
+    ctx.fillStyle = '#d8ecff';
+    ctx.beginPath(); ctx.arc(b.x, b.y, 30, 0, Math.PI * 2); ctx.fill();
+    // 角
+    ctx.fillStyle = '#eef6ff';
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y - 24); ctx.lineTo(b.x + 18, b.y - 48); ctx.lineTo(b.x + 10, b.y - 18);
+    ctx.closePath(); ctx.fill();
+    // 目
+    ctx.fillStyle = '#2050a0';
+    ctx.beginPath(); ctx.arc(b.x - 12, b.y - 6, 6, 0, Math.PI * 2); ctx.fill();
+  } else if (b.kind === 'tempest') {
+    // 渦巻く雲
+    for (let i = 0; i < 3; i++) {
+      const a = b.t * 0.05 + i * Math.PI * 2 / 3;
+      ctx.fillStyle = 'rgba(90,100,130,0.7)';
+      ctx.beginPath();
+      ctx.ellipse(b.x + Math.cos(a) * 30, b.y + Math.sin(a) * 30, 42, 26, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = (Math.floor(frame / 6) % 2) ? '#ffe870' : '#c0d0ff';
+    ctx.beginPath(); ctx.arc(b.x, b.y, 18, 0, Math.PI * 2); ctx.fill();
+  } else { // core
     ctx.fillStyle = '#5a3a40';
     ctx.fillRect(b.x - 40, b.y - 75, 100, 150);
     ctx.fillStyle = '#7a5058';
@@ -1065,7 +1353,7 @@ function drawBulletsItems() {
     ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r * 0.5, 0, Math.PI * 2); ctx.fill();
   }
   for (const it of items) {
-    const colors = { P: '#ff6060', S: '#60c0ff', M: '#ffb040', B: '#70ffb0' };
+    const colors = { P: '#ff6060', S: '#60c0ff', M: '#ffb040', B: '#70ffb0', U: '#ff70b0' };
     ctx.fillStyle = colors[it.type];
     ctx.save();
     ctx.translate(it.x, it.y);
@@ -1096,14 +1384,12 @@ function drawHUD() {
   if (player.shield > 0) status += `  BAR×${player.shield}`;
   ctx.fillText(status, W - 90, 16);
   // 残機
-  for (let i = 0; i < lives; i++) {
-    ctx.fillStyle = '#cfe8ff';
-    ctx.beginPath();
-    ctx.moveTo(W - 70 + i * 22 + 10, 12);
-    ctx.lineTo(W - 70 + i * 22, 8);
-    ctx.lineTo(W - 70 + i * 22, 16);
-    ctx.closePath(); ctx.fill();
-  }
+  ctx.fillStyle = '#cfe8ff';
+  ctx.beginPath();
+  ctx.moveTo(W - 52, 12); ctx.lineTo(W - 62, 8); ctx.lineTo(W - 62, 16);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+  ctx.fillText(`×${lives}`, W - 46, 16);
   // 進行度バー
   const st = STAGES[stageIdx];
   ctx.fillStyle = 'rgba(255,255,255,0.2)';
@@ -1151,6 +1437,7 @@ function drawTextScreen(title, lines, footer) {
 function loop() {
   requestAnimationFrame(loop);
   const consume = enterEdge; enterEdge = false;
+  if (consume && state !== 'play') SFX.ok();
 
   if (state === 'title') {
     drawTextScreen('', [], '');
@@ -1160,10 +1447,10 @@ function loop() {
     ctx.fillText('SONIC RAY', W / 2, 170);
     ctx.fillStyle = '#aab';
     ctx.font = '17px monospace';
-    ctx.fillText('- 横スクロールシューティング -', W / 2, 210);
+    ctx.fillText('- 横スクロールシューティング 全5ステージ -', W / 2, 210);
     ctx.font = '13px monospace';
     ctx.fillText('移動: ←↑→↓ / WASD   ショット: Z or SPACE', W / 2, 290);
-    ctx.fillText('P:パワー  S:スピード  M:ミサイル  B:バリア', W / 2, 315);
+    ctx.fillText('P:パワー S:スピード M:ミサイル B:バリア U:1UP', W / 2, 315);
     ctx.fillText(`HI SCORE ${String(hiScore).padStart(7, '0')}`, W / 2, 355);
     if (Math.floor(frame / 30) % 2 === 0) {
       ctx.fillStyle = '#ffd060'; ctx.font = '17px monospace';
