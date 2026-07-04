@@ -79,14 +79,21 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v5</span>
+    <span id="ver">v6</span>
   </div>
 </div>
 <script>
 'use strict';
 const W = 800, H = 450;
 const cv = document.getElementById('game');
-const ctx = cv.getContext('2d');
+const mainCtx = cv.getContext('2d');
+// 8bit ピクセル風: ワールドは低解像度キャンバスに描いて拡大転送する
+const LW = 320, LH = 180;
+const off = document.createElement('canvas');
+off.width = LW; off.height = LH;
+const octx = off.getContext('2d');
+let ctx = octx; // 描画先: ワールド=低解像度 / HUD・テキスト=高解像度
+const PXU = W / LW; // 1ドット = 2.5 ゲーム座標
 
 // ---------------- ユーティリティ ----------------
 function mulberry32(seed) {
@@ -102,6 +109,46 @@ const dist2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
 function overlap(a, b) {
   return Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
 }
+function lerpColor(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const r = Math.round(((pa >> 16) & 255) * (1 - t) + ((pb >> 16) & 255) * t);
+  const g = Math.round(((pa >> 8) & 255) * (1 - t) + ((pb >> 8) & 255) * t);
+  const bl = Math.round((pa & 255) * (1 - t) + (pb & 255) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+
+// ---------------- ピクセルスプライト ----------------
+function drawSprite(rows, pal, cx, cy) {
+  const w = rows[0].length, h = rows.length;
+  const x0 = Math.round((cx - w * PXU / 2) / PXU) * PXU;
+  const y0 = Math.round((cy - h * PXU / 2) / PXU) * PXU;
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const k = rows[r][c];
+      if (k === '.') continue;
+      ctx.fillStyle = pal[k];
+      ctx.fillRect(x0 + c * PXU, y0 + r * PXU, PXU + 0.05, PXU + 0.05);
+    }
+  }
+}
+const SPR_PLAYER = [
+  '..22........',
+  '..2222......',
+  '.221111322..',
+  '421111133222',
+  '.221111322..',
+  '..2222......',
+  '..22........',
+];
+const PAL_PLAYER = { 1: '#d8ecff', 2: '#4a7ab8', 3: '#183c78', 4: '#28324a' };
+const SPR_ZAKO = [
+  '...2222.',
+  '.2211122',
+  '22131122',
+  '.2211122',
+  '...2222.',
+];
+const PAL_ZAKO = { 1: '#ff9c94', 2: '#c83020', 3: '#300808' };
 
 // ---------------- サウンド (WebAudio) ----------------
 let actx = null, muted = false;
@@ -264,7 +311,7 @@ const STAGES = [
   {
     name: 'STAGE 1  草原地帯グリーンフィールド',
     length: 6200, scroll: 1.3, seed: 101,
-    sky: ['#7ec8ff', '#cfeaff'], far: '#5a8f6e', ground: '#3e7a4a', groundEdge: '#7fce8a',
+    sky: ['#41a6f6', '#a8e0ff'], far: '#1f7a4d', ground: '#2e8b3d', groundEdge: '#7fe084',
     caveCeil: false,
     story: [
       '西暦2199年。辺境コロニー〈アヴァロン〉は',
@@ -312,7 +359,7 @@ const STAGES = [
   {
     name: 'STAGE 3  氷結峡谷フロストキャニオン',
     length: 6800, scroll: 1.5, seed: 404,
-    sky: ['#0e1a30', '#33507a'], far: '#4a6a94', ground: '#8fb4d8', groundEdge: '#e8f4ff',
+    sky: ['#101c40', '#3a60a0'], far: '#4a70b0', ground: '#a0c0e0', groundEdge: '#f0f8ff',
     caveCeil: true,
     story: [
       '洞窟を抜けた先に広がるのは、',
@@ -342,7 +389,7 @@ const STAGES = [
       '〈ヴォイド〉の気象兵器が生んだ人工の嵐。',
       '',
       '乱気流が機体を揺らし、',
-      '雲間から敵の編隊が次々と襲いかかる。',
+      '雲海には敵の伏兵が潜んでいる。',
       '',
       '―― 嵐を越え、要塞の眼前へ。',
     ],
@@ -466,6 +513,34 @@ function ceilAt(wx) {
 function hitTerrain(wx, y, pad) {
   return y + pad > floorAt(wx) || y - pad < ceilAt(wx);
 }
+// 地形解析: 敵配置に使う
+function floorPeaks(minX, maxX, thresh) { // 床の高所(山頂・氷柱の先端)
+  const res = [], f = terrain.floor;
+  const i1 = Math.min(Math.floor(maxX / TSTEP), terrain.n - 3);
+  for (let i = Math.max(2, Math.ceil(minX / TSTEP)); i < i1; i++) {
+    if (f[i] < thresh && f[i] <= f[i - 2] && f[i] <= f[i + 2]) { res.push(i * TSTEP); i += 20; }
+  }
+  return res;
+}
+function ceilSpikes(minX, maxX) { // 天井から深く垂れ下がる場所
+  const res = [], c = terrain.ceil;
+  const i1 = Math.min(Math.floor(maxX / TSTEP), terrain.n - 3);
+  for (let i = Math.max(2, Math.ceil(minX / TSTEP)); i < i1; i++) {
+    if (c[i] > 100 && c[i] >= c[i - 2] + 8 && c[i] >= c[i + 2] + 8) { res.push(i * TSTEP); i += 8; }
+  }
+  return res;
+}
+function narrowGaps(minX, maxX) { // 天井と床が最も狭まる通路
+  const res = [], f = terrain.floor, c = terrain.ceil;
+  const i1 = Math.min(Math.floor(maxX / TSTEP), terrain.n - 4);
+  for (let i = Math.max(3, Math.ceil(minX / TSTEP)); i < i1; i++) {
+    const g = f[i] - c[i];
+    if (g < 165 && g <= (f[i - 3] - c[i - 3]) - 8 && g <= (f[i + 3] - c[i + 3]) - 8) {
+      res.push(i * TSTEP); i += 14;
+    }
+  }
+  return res;
+}
 
 // ---------------- ゲーム状態 ----------------
 let state = 'title'; // title | story | play | clearstory | gameover | ending
@@ -481,53 +556,94 @@ let stageBanner = 0;
 
 const player = {
   x: 100, y: 225, w: 26, h: 14,
-  speedLv: 0, power: 1, missile: false, shield: 0,
+  speedLv: 0, power: 1, missileLv: 0, shield: 0, options: 0,
   inv: 0, cool: 0, missileCool: 0, alive: true, deadT: 0,
 };
+let trail = []; // オプションが辿る自機の軌跡
 let bullets = [], ebullets = [], enemies = [], items = [], particles = [], events = [];
 let boss = null, bossWarnT = 0;
 let itemCycle = 0;
 
 // ---------------- イベント(出現スクリプト)生成 ----------------
+function pushAt(type, wx, extra) { // 固定座標(wx)に配置する地形連動イベント
+  events.push(Object.assign({ x: Math.max(0, wx - W - 80), type, wx }, extra || {}));
+}
 function genEvents(si) {
   const st = STAGES[si];
   const rng = mulberry32(st.seed * 7 + 5);
   events = [];
+  const lenEnd = st.length - 900;
+
+  // 空中敵のランダム編隊
   let x = 450;
-  while (x < st.length - 900) {
+  while (x < lenEnd) {
     const r = rng();
     if (si === 0) {
-      if (r < 0.32) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.62) events.push({ x, type: 'zako', count: 3 });
-      else if (r < 0.82) events.push({ x, type: 'turret' });
+      if (r < 0.34) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.68) events.push({ x, type: 'zako', count: 3 });
       else events.push({ x, type: 'hover' });
     } else if (si === 1) {
-      if (r < 0.27) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.47) events.push({ x, type: 'stalactite', count: 2 + Math.floor(rng() * 2) });
-      else if (r < 0.68) events.push({ x, type: 'zako', count: 4 });
-      else if (r < 0.87) events.push({ x, type: 'turret' });
-      else events.push({ x, type: 'hover' });
+      if (r < 0.30) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.60) events.push({ x, type: 'zako', count: 4 });
+      else if (r < 0.85) events.push({ x, type: 'hover' });
+      else events.push({ x, type: 'stalactite', count: 2 });
     } else if (si === 2) {
-      if (r < 0.26) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.46) events.push({ x, type: 'stalactite', count: 3 });
-      else if (r < 0.66) events.push({ x, type: 'zako', count: 4, fast: true });
-      else if (r < 0.86) events.push({ x, type: 'diver' });
-      else events.push({ x, type: 'turret' });
+      if (r < 0.30) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.60) events.push({ x, type: 'zako', count: 4, fast: true });
+      else if (r < 0.90) events.push({ x, type: 'diver' });
+      else events.push({ x, type: 'hover' });
     } else if (si === 3) {
-      if (r < 0.24) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.50) events.push({ x, type: 'diver' });
-      else if (r < 0.72) events.push({ x, type: 'zako', count: 5, fast: true });
-      else if (r < 0.90) events.push({ x, type: 'hover' });
-      else events.push({ x, type: 'zako', count: 3 });
+      if (r < 0.25) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.55) events.push({ x, type: 'diver' });
+      else if (r < 0.80) events.push({ x, type: 'zako', count: 5, fast: true });
+      else events.push({ x, type: 'hover' });
     } else {
-      if (r < 0.20) events.push({ x, type: 'wave', carry: true });
-      else if (r < 0.42) events.push({ x, type: 'turret', dual: true });
-      else if (r < 0.60) events.push({ x, type: 'hover' });
+      if (r < 0.25) events.push({ x, type: 'wave', carry: true });
+      else if (r < 0.50) events.push({ x, type: 'hover' });
       else if (r < 0.80) events.push({ x, type: 'zako', count: 4, fast: true });
-      else events.push({ x, type: 'crusher' });
+      else events.push({ x, type: 'turret', dual: true });
     }
-    x += 250 + rng() * 190;
+    x += 260 + rng() * 200;
   }
+
+  // 地形を活かした配置
+  if (si === 0) {
+    // 丘や山の頂上に砲台
+    for (const wx of floorPeaks(700, lenEnd, 356)) {
+      if (rng() < 0.8) pushAt('turretAt', wx);
+    }
+  } else if (si === 1) {
+    // 狭い通路の入口を守る砲台と、通路手前の鍾乳石の罠
+    for (const wx of narrowGaps(700, lenEnd)) {
+      pushAt('turretAt', wx - 60);
+      if (rng() < 0.7) pushAt('turretAt', wx + 40, { ceil: true });
+      pushAt('stalactiteAt', wx - 260, { count: 3 });
+    }
+  } else if (si === 2) {
+    // 床の氷柱の先端に砲台、天井の氷柱は真下を通ると落ちてくる
+    for (const wx of floorPeaks(700, lenEnd, 340)) {
+      if (rng() < 0.55) pushAt('turretAt', wx);
+    }
+    for (const wx of ceilSpikes(700, lenEnd)) {
+      if (rng() < 0.65) pushAt('stalactiteAt', wx, { count: 2 });
+    }
+  } else if (si === 3) {
+    // 雲海に潜み、浮上して撃ってくる伏兵
+    for (let wx = 900; wx < lenEnd; wx += 640 + rng() * 260) {
+      pushAt('popup', wx);
+      if (rng() < 0.4) pushAt('popup', wx + 130);
+    }
+  } else {
+    // 隔壁の狭間にクラッシャー、前後の床と天井に砲台
+    for (let bx = 1300; bx + 800 < lenEnd + 900; bx += 2600) {
+      const cw = bx + Math.floor(0.53 * 1300);
+      pushAt('crusherAt', cw);
+      pushAt('turretAt', cw - 240);
+      pushAt('turretAt', cw - 170, { ceil: true });
+      pushAt('turretAt', cw + 200);
+    }
+  }
+
   // 定期的にアイテム運搬機(倒すと必ずアイテムを落とす)
   for (let cx = 750; cx < st.length - 1000; cx += 620 + rng() * 250) {
     events.push({ x: cx, type: 'carrier' });
@@ -567,6 +683,12 @@ function spawnEvent(ev) {
       }
       break;
     }
+    case 'turretAt':
+      enemies.push({
+        type: 'turret', wx: ev.wx, ceil: ev.ceil, x: 0, y: 0, w: 26, h: 20,
+        hp: 4, t: Math.floor(Math.random() * 60), score: 300,
+      });
+      break;
     case 'hover': {
       enemies.push({
         type: 'hover', x: W + 40, y: 70 + Math.random() * 260, w: 30, h: 24,
@@ -581,11 +703,20 @@ function spawnEvent(ev) {
       }
       break;
     }
+    case 'stalactiteAt':
+      for (let i = 0; i < (ev.count || 2); i++) {
+        const wx = ev.wx + i * 44 - ((ev.count || 2) - 1) * 22;
+        enemies.push({ type: 'stalactite', wx, x: 0, y: 0, w: 16, h: 34, hp: 2, vy: 0, fell: false, score: 200 });
+      }
+      break;
     case 'crusher': {
       const wx = sx;
       enemies.push({ type: 'crusher', wx, x: 0, y: 100 + Math.random() * 200, w: 34, h: 60, hp: 999, invuln: true, t: 0, score: 0 });
       break;
     }
+    case 'crusherAt':
+      enemies.push({ type: 'crusher', wx: ev.wx, x: 0, y: 225, w: 34, h: 60, hp: 999, invuln: true, t: 0, score: 0 });
+      break;
     case 'diver': {
       for (let i = 0; i < 2; i++) {
         enemies.push({
@@ -595,6 +726,12 @@ function spawnEvent(ev) {
       }
       break;
     }
+    case 'popup':
+      enemies.push({
+        type: 'popup', wx: ev.wx, x: 0, y: 9999, w: 24, h: 18,
+        hp: 2, t: 0, t2: 0, phase: 0, score: 250,
+      });
+      break;
     case 'carrier': {
       enemies.push({
         type: 'carrier', x: W + 40, y: 60 + Math.random() * 300, w: 26, h: 18,
@@ -739,7 +876,7 @@ function explode(x, y, n, color) {
   }
 }
 function dropItem(x, y) {
-  const types = ['P', 'S', 'M', 'B', 'P', 'M', 'S', 'U'];
+  const types = ['P', 'S', 'M', 'B', 'O', 'P', 'M', 'S', 'O', 'U'];
   const t = types[itemCycle % types.length];
   itemCycle++;
   items.push({ x, y, w: 20, h: 20, type: t, t: 0 });
@@ -748,7 +885,7 @@ function dropItem(x, y) {
 function startStage(si) {
   stageIdx = si;
   scrollX = 0; frame = 0; arenaT = 0;
-  bullets = []; ebullets = []; enemies = []; items = []; particles = []; timers = [];
+  bullets = []; ebullets = []; enemies = []; items = []; particles = []; timers = []; trail = [];
   boss = null; bossWarnT = 0;
   genTerrain(si);
   genEvents(si);
@@ -772,7 +909,8 @@ function playerDie() {
   explode(player.x, player.y, 30, '#80ccff');
   SFX.die();
   shakeT = 25;
-  player.power = 1; player.missile = false; player.shield = 0; player.speedLv = Math.max(0, player.speedLv - 1);
+  player.power = 1; player.missileLv = 0; player.shield = 0; player.options = 0;
+  player.speedLv = Math.max(0, player.speedLv - 1);
 }
 function respawnOrGameOver() {
   lives--;
@@ -780,9 +918,14 @@ function respawnOrGameOver() {
   player.alive = true; player.inv = 150;
   player.x = 100;
   player.y = clamp(225, ceilAt(scrollX + 100) + 30, floorAt(scrollX + 100) - 30);
+  trail = [];
 }
 
 // ---------------- プレイヤー更新 ----------------
+function optionPos(k) { // k 番目のオプションの位置(自機の軌跡を遅れて辿る)
+  const idx = (k + 1) * 13;
+  return trail[Math.min(idx, trail.length - 1)] || { x: player.x - 24 * (k + 1), y: player.y };
+}
 function updatePlayer() {
   if (!player.alive) {
     player.deadT++;
@@ -797,29 +940,48 @@ function updatePlayer() {
   if (stageIdx === 3) player.y += Math.sin(frame * 0.012) * 0.7; // 嵐の乱気流
   player.x = clamp(player.x, 20, W - 40);
   player.y = clamp(player.y, 16, H - 16);
+  trail.unshift({ x: player.x, y: player.y });
+  if (trail.length > 42) trail.pop();
   if (player.inv > 0) player.inv--;
   if (player.cool > 0) player.cool--;
   if (player.missileCool > 0) player.missileCool--;
 
-  // ショット
+  // ショット(自機 + オプション)
   if (inp.shot() && player.cool <= 0) {
-    player.cool = 9;
+    player.cool = player.power >= 6 ? 7 : 9;
     SFX.shot();
-    const bx = player.x + 16, by = player.y;
-    if (player.power === 1) {
-      bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
-    } else if (player.power === 2) {
-      bullets.push({ x: bx, y: by - 5, vx: 8, vy: 0 });
-      bullets.push({ x: bx, y: by + 5, vx: 8, vy: 0 });
-    } else {
-      bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
-      bullets.push({ x: bx, y: by - 3, vx: 7.6, vy: -1.6 });
-      bullets.push({ x: bx, y: by + 3, vx: 7.6, vy: 1.6 });
-      if (player.power >= 4) bullets.push({ x: player.x - 14, y: by, vx: -7, vy: 0 }); // 後方ショット
+    const pts = [{ x: player.x, y: player.y, main: true }];
+    for (let k = 0; k < player.options; k++) pts.push({ ...optionPos(k), main: false });
+    for (const fp of pts) {
+      const bx = fp.x + 16, by = fp.y;
+      if (player.power === 1) {
+        bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
+      } else if (player.power === 2) {
+        bullets.push({ x: bx, y: by - 5, vx: 8, vy: 0 });
+        bullets.push({ x: bx, y: by + 5, vx: 8, vy: 0 });
+      } else if (player.power <= 4) {
+        bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
+        bullets.push({ x: bx, y: by - 3, vx: 7.6, vy: -1.6 });
+        bullets.push({ x: bx, y: by + 3, vx: 7.6, vy: 1.6 });
+      } else { // Lv5+: 5方向
+        bullets.push({ x: bx, y: by, vx: 8, vy: 0 });
+        bullets.push({ x: bx, y: by - 3, vx: 7.6, vy: -1.4 });
+        bullets.push({ x: bx, y: by + 3, vx: 7.6, vy: 1.4 });
+        bullets.push({ x: bx, y: by - 5, vx: 7.2, vy: -2.8 });
+        bullets.push({ x: bx, y: by + 5, vx: 7.2, vy: 2.8 });
+      }
+      if (fp.main) {
+        if (player.power >= 4) bullets.push({ x: fp.x - 14, y: by, vx: -7, vy: 0 }); // 後方
+        if (player.power >= 6) { // Lv6: 上下ショット
+          bullets.push({ x: fp.x, y: by - 8, vx: 0, vy: -7 });
+          bullets.push({ x: fp.x, y: by + 8, vx: 0, vy: 7 });
+        }
+      }
     }
-    if (player.missile && player.missileCool <= 0) {
+    if (player.missileLv > 0 && player.missileCool <= 0) {
       player.missileCool = 24;
       bullets.push({ x: player.x, y: player.y + 8, vx: 4.5, vy: 2.6, missile: true });
+      if (player.missileLv >= 2) bullets.push({ x: player.x, y: player.y - 8, vx: 4.5, vy: -2.6, missile: true, up: true });
     }
   }
 
@@ -831,7 +993,7 @@ function updatePlayer() {
 function updateBullets() {
   for (const b of bullets) {
     b.x += b.vx; b.y += b.vy;
-    if (b.missile) b.vy += 0.05;
+    if (b.missile) b.vy += b.up ? -0.05 : 0.05;
   }
   bullets = bullets.filter(b => {
     if (b.x > W + 20 || b.x < -20 || b.y < -20 || b.y > H + 20) return false;
@@ -919,6 +1081,25 @@ function updateEnemies() {
         e.vx = Math.max(-3.4, e.vx - 0.04);
         e.x += e.vx; e.y += e.vy;
         break;
+      case 'popup': {
+        e.x = e.wx - scrollX;
+        const fy = floorAt(e.wx);
+        if (e.phase === 0) { e.y = fy + 26; if (e.x < W - 60 && e.x > 0) e.phase = 1; }
+        else if (e.phase === 1) { e.y -= 1.3; if (e.y <= fy - 58) e.phase = 2; }
+        else if (e.phase === 2) {
+          e.t2++;
+          if (e.t2 % 55 === 25 && player.alive) {
+            const a = Math.atan2(player.y - e.y, player.x - e.x);
+            const spd = 2.6 + stageIdx * 0.12;
+            ebullets.push({ x: e.x, y: e.y - 8, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: 4 });
+          }
+          if (e.t2 > 170) e.phase = 3;
+        } else {
+          e.y += 1.3;
+          if (e.y > fy + 26) { e.hp = 0; e.noScore = true; }
+        }
+        break;
+      }
       case 'carrier':
         e.x += e.vx;
         e.y += Math.sin(e.t * 0.04) * 0.8;
@@ -988,10 +1169,11 @@ function updateItems() {
       it.got = true;
       addScore(500);
       flashT = 3;
-      if (it.type === 'P') { player.power = Math.min(4, player.power + 1); SFX.item(); }
+      if (it.type === 'P') { player.power = Math.min(6, player.power + 1); SFX.item(); }
       else if (it.type === 'S') { player.speedLv = Math.min(4, player.speedLv + 1); SFX.item(); }
-      else if (it.type === 'M') { player.missile = true; SFX.item(); }
-      else if (it.type === 'B') { player.shield = Math.min(3, player.shield + 3); SFX.item(); }
+      else if (it.type === 'M') { player.missileLv = Math.min(2, player.missileLv + 1); SFX.item(); }
+      else if (it.type === 'B') { player.shield = Math.min(4, player.shield + 3); SFX.item(); }
+      else if (it.type === 'O') { player.options = Math.min(2, player.options + 1); SFX.item(); }
       else if (it.type === 'U') { lives = Math.min(6, lives + 1); SFX.oneup(); }
     }
   }
@@ -1033,10 +1215,12 @@ function updatePlay() {
 // ---------------- 描画 ----------------
 function drawBackground() {
   const st = STAGES[stageIdx];
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, st.sky[0]); g.addColorStop(1, st.sky[1]);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+  // 空: 8bit 風の色帯グラデーション
+  const bands = 6;
+  for (let i = 0; i < bands; i++) {
+    ctx.fillStyle = lerpColor(st.sky[0], st.sky[1], i / (bands - 1));
+    ctx.fillRect(0, i * H / bands, W, H / bands + 1);
+  }
 
   const px = scrollX * 0.3;
   if (stageIdx === 0) {
@@ -1048,15 +1232,14 @@ function drawBackground() {
       ctx.lineTo(x, 330 - Math.abs(Math.sin(wx * 0.003)) * 90 - Math.sin(wx * 0.009) * 20);
     }
     ctx.lineTo(W, H); ctx.fill();
-    // 雲
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    // 角ばった雲
+    ctx.fillStyle = '#f0f8ff';
     for (let i = 0; i < 5; i++) {
       const cx = ((i * 260 - scrollX * 0.15) % (W + 200) + W + 200) % (W + 200) - 100;
       const cy = 50 + (i * 47) % 120;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 46, 13, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx + 25, cy - 8, 30, 11, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(cx - 40, cy - 4, 80, 12);
+      ctx.fillRect(cx - 22, cy - 12, 46, 8);
+      ctx.fillRect(cx - 8, cy + 8, 36, 6);
     }
   } else if (stageIdx === 1) {
     // 奥の岩柱ときらめく結晶
@@ -1070,7 +1253,7 @@ function drawBackground() {
       const cy = 60 + (i * 97) % 330;
       const tw = 0.5 + 0.5 * Math.sin(frame * 0.05 + i * 2);
       ctx.fillStyle = `rgba(150,140,255,${0.25 + tw * 0.5})`;
-      ctx.fillRect(cx, cy, 3, 3);
+      ctx.fillRect(cx, cy, 4, 4);
     }
   } else if (stageIdx === 2) {
     // 遠くの氷峰
@@ -1082,29 +1265,29 @@ function drawBackground() {
     }
     ctx.lineTo(W, H); ctx.fill();
     // 降る雪
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
     for (let i = 0; i < 40; i++) {
       const sx = ((i * 53 + Math.sin(frame * 0.01 + i) * 30 - scrollX * 0.4) % W + W) % W;
       const sy = (i * 97 + frame * (1 + (i % 3) * 0.5)) % H;
-      ctx.fillRect(sx, sy, 2, 2);
+      ctx.fillRect(sx, sy, 3, 3);
     }
   } else if (stageIdx === 3) {
-    // 流れる雲層
+    // 流れる角ばった雲層
     for (let L = 0; L < 3; L++) {
-      ctx.fillStyle = `rgba(70,76,100,${0.25 + L * 0.12})`;
+      ctx.fillStyle = `rgba(70,76,100,${0.3 + L * 0.14})`;
       const sp = 0.4 + L * 0.5;
       for (let i = 0; i < 6; i++) {
         const cx = ((i * 180 + L * 60 - scrollX * sp) % (W + 240) + W + 240) % (W + 240) - 120;
-        ctx.beginPath();
-        ctx.ellipse(cx, 70 + L * 90 + (i * 37) % 50, 90, 24, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const cy = 70 + L * 90 + (i * 37) % 50;
+        ctx.fillRect(cx - 80, cy - 10, 160, 22);
+        ctx.fillRect(cx - 50, cy - 20, 100, 12);
       }
     }
     // 稲光
     if ((frame + 37) % 160 < 5) {
       ctx.fillStyle = 'rgba(255,255,240,0.18)';
       ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(255,255,200,0.8)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,200,0.9)'; ctx.lineWidth = 3;
       ctx.beginPath();
       let lx = 100 + (frame * 7919) % 600, ly = 0;
       ctx.moveTo(lx, ly);
@@ -1159,44 +1342,36 @@ function drawTerrain() {
   }
 }
 function drawPlayer() {
+  // オプション(自機より先に描く)
+  if (player.alive) {
+    for (let k = 0; k < player.options; k++) {
+      const p = optionPos(k);
+      ctx.fillStyle = Math.floor(frame / 4) % 2 ? '#ffd060' : '#ff9030';
+      ctx.fillRect(p.x - 5, p.y - 5, 10, 10);
+      ctx.fillStyle = '#fff8e0';
+      ctx.fillRect(p.x - 2.5, p.y - 2.5, 5, 5);
+    }
+  }
   if (!player.alive) return;
   if (player.inv > 0 && Math.floor(frame / 4) % 2 === 0) return;
   const { x, y } = player;
-  // 機体
-  ctx.fillStyle = '#cfe8ff';
-  ctx.beginPath();
-  ctx.moveTo(x + 15, y);
-  ctx.lineTo(x - 12, y - 7);
-  ctx.lineTo(x - 8, y);
-  ctx.lineTo(x - 12, y + 7);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#3d8de0';
-  ctx.fillRect(x - 4, y - 3, 9, 6);
   // エンジン炎
   ctx.fillStyle = Math.floor(frame / 3) % 2 ? '#ffb040' : '#ff7020';
-  ctx.beginPath();
-  ctx.moveTo(x - 12, y - 3);
-  ctx.lineTo(x - 20 - Math.random() * 5, y);
-  ctx.lineTo(x - 12, y + 3);
-  ctx.closePath(); ctx.fill();
+  ctx.fillRect(x - 21, y - 2.5, 7.5, 5);
+  if (Math.floor(frame / 3) % 2) ctx.fillRect(x - 26, y - 1.2, 5, 2.5);
+  drawSprite(SPR_PLAYER, PAL_PLAYER, x, y);
   // シールド
   if (player.shield > 0) {
     ctx.strokeStyle = `rgba(120,220,255,${0.4 + 0.3 * Math.sin(frame * 0.2)})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 19, 0, Math.PI * 2); ctx.stroke();
   }
 }
 function drawEnemies() {
   for (const e of enemies) {
     switch (e.type) {
       case 'zako':
-        ctx.fillStyle = '#e05050';
-        ctx.beginPath();
-        ctx.moveTo(e.x - 11, e.y);
-        ctx.lineTo(e.x + 11, e.y - 8);
-        ctx.lineTo(e.x + 6, e.y);
-        ctx.lineTo(e.x + 11, e.y + 8);
-        ctx.closePath(); ctx.fill();
+        drawSprite(SPR_ZAKO, PAL_ZAKO, e.x, e.y);
         break;
       case 'wave':
         ctx.fillStyle = e.carry ? '#ff8830' : '#d060d0';
@@ -1241,6 +1416,15 @@ function drawEnemies() {
         ctx.lineTo(e.x - 9, e.y - 8);
         ctx.lineTo(e.x + 9, e.y - 8);
         ctx.closePath(); ctx.fill();
+        break;
+      case 'popup':
+        if (e.y > floorAt(e.wx) + 4) break; // 雲海に潜っている間は見えない
+        ctx.fillStyle = '#7890a8';
+        ctx.fillRect(e.x - 12, e.y - 4, 24, 12);
+        ctx.fillStyle = '#a8c0d8';
+        ctx.fillRect(e.x - 8, e.y - 12, 16, 9);
+        ctx.fillStyle = '#203040';
+        ctx.fillRect(e.x - 4, e.y - 10, 8, 5);
         break;
       case 'carrier':
         ctx.fillStyle = '#ff8830';
@@ -1327,13 +1511,6 @@ function drawBoss() {
       ctx.fillRect(b.x - 30, b.y + i * 40 - 5, 24, 10);
     }
   }
-  // HPバー
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(150, H - 26, 500, 14);
-  ctx.fillStyle = b.hp / b.maxHp > 0.3 ? '#ff5060' : '#ffcc30';
-  ctx.fillRect(152, H - 24, 496 * clamp(b.hp / b.maxHp, 0, 1), 10);
-  ctx.fillStyle = '#fff'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(b.name, W / 2, H - 30);
 }
 function drawBulletsItems() {
   ctx.fillStyle = '#aaffff';
@@ -1348,12 +1525,12 @@ function drawBulletsItems() {
   }
   for (const eb of ebullets) {
     ctx.fillStyle = eb.homing ? '#ff70e0' : '#ffe060';
-    ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(eb.x - eb.r, eb.y - eb.r, eb.r * 2, eb.r * 2);
     ctx.fillStyle = '#903020';
-    ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(eb.x - eb.r * 0.5, eb.y - eb.r * 0.5, eb.r, eb.r);
   }
   for (const it of items) {
-    const colors = { P: '#ff6060', S: '#60c0ff', M: '#ffb040', B: '#70ffb0', U: '#ff70b0' };
+    const colors = { P: '#ff6060', S: '#60c0ff', M: '#ffb040', B: '#70ffb0', O: '#ffd040', U: '#ff70b0' };
     ctx.fillStyle = colors[it.type];
     ctx.save();
     ctx.translate(it.x, it.y);
@@ -1366,7 +1543,7 @@ function drawBulletsItems() {
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.life / 30, 0, 1);
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    ctx.fillRect(p.x - 2.5, p.y - 2.5, 5, 5);
   }
   ctx.globalAlpha = 1;
 }
@@ -1379,9 +1556,10 @@ function drawHUD() {
   ctx.textAlign = 'center';
   ctx.fillText(`STAGE ${stageIdx + 1}`, W / 2, 16);
   ctx.textAlign = 'right';
-  let status = `POWER Lv${player.power}  SPD ${player.speedLv}`;
-  if (player.missile) status += '  MSL';
-  if (player.shield > 0) status += `  BAR×${player.shield}`;
+  let status = `P${player.power} S${player.speedLv}`;
+  if (player.options > 0) status += ` O${player.options}`;
+  if (player.missileLv > 0) status += ` M${player.missileLv}`;
+  if (player.shield > 0) status += ` B${player.shield}`;
   ctx.fillText(status, W - 90, 16);
   // 残機
   ctx.fillStyle = '#cfe8ff';
@@ -1396,6 +1574,16 @@ function drawHUD() {
   ctx.fillRect(300, 20, 200, 3);
   ctx.fillStyle = '#80ff80';
   ctx.fillRect(300, 20, 200 * clamp(scrollX / (st.length - 400), 0, 1), 3);
+
+  // ボス HP バー(高解像度側で描く)
+  if (boss) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(150, H - 26, 500, 14);
+    ctx.fillStyle = boss.hp / boss.maxHp > 0.3 ? '#ff5060' : '#ffcc30';
+    ctx.fillRect(152, H - 24, 496 * clamp(boss.hp / boss.maxHp, 0, 1), 10);
+    ctx.fillStyle = '#fff'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(boss.name, W / 2, H - 30);
+  }
 
   if (stageBanner > 0) {
     ctx.globalAlpha = clamp(Math.min(stageBanner, 150 - stageBanner) / 30, 0, 1);
@@ -1414,9 +1602,9 @@ function drawTextScreen(title, lines, footer) {
   // 星
   const rng = mulberry32(42);
   for (let i = 0; i < 80; i++) {
-    const x = rng() * W, y = rng() * H;
+    const x = Math.floor(rng() * W / 4) * 4, y = Math.floor(rng() * H / 4) * 4;
     ctx.fillStyle = `rgba(255,255,255,${0.2 + 0.6 * Math.abs(Math.sin(frame * 0.02 + i))})`;
-    ctx.fillRect(x, y, 2, 2);
+    ctx.fillRect(x, y, 3, 3);
   }
   ctx.textAlign = 'center';
   if (title) {
@@ -1438,6 +1626,7 @@ function loop() {
   requestAnimationFrame(loop);
   const consume = enterEdge; enterEdge = false;
   if (consume && state !== 'play') SFX.ok();
+  ctx = mainCtx; // テキスト画面・HUD は高解像度で描く
 
   if (state === 'title') {
     drawTextScreen('', [], '');
@@ -1447,18 +1636,18 @@ function loop() {
     ctx.fillText('SONIC RAY', W / 2, 170);
     ctx.fillStyle = '#aab';
     ctx.font = '17px monospace';
-    ctx.fillText('- 横スクロールシューティング 全5ステージ -', W / 2, 210);
+    ctx.fillText('- 8bit 横スクロールシューティング 全5ステージ -', W / 2, 210);
     ctx.font = '13px monospace';
-    ctx.fillText('移動: ←↑→↓ / WASD   ショット: Z or SPACE', W / 2, 290);
-    ctx.fillText('P:パワー S:スピード M:ミサイル B:バリア U:1UP', W / 2, 315);
-    ctx.fillText(`HI SCORE ${String(hiScore).padStart(7, '0')}`, W / 2, 355);
+    ctx.fillText('移動: ←↑→↓ / WASD   ショット: Z or SPACE', W / 2, 285);
+    ctx.fillText('P:パワー S:スピード M:ミサイル B:バリア O:オプション U:1UP', W / 2, 310);
+    ctx.fillText(`HI SCORE ${String(hiScore).padStart(7, '0')}`, W / 2, 350);
     if (Math.floor(frame / 30) % 2 === 0) {
       ctx.fillStyle = '#ffd060'; ctx.font = '17px monospace';
       ctx.fillText('PRESS ENTER TO START', W / 2, H - 55);
     }
     if (consume) {
       score = 0; lives = 3;
-      player.power = 1; player.speedLv = 0; player.missile = false; player.shield = 0;
+      player.power = 1; player.speedLv = 0; player.missileLv = 0; player.shield = 0; player.options = 0;
       itemCycle = 0;
       storyLines = STAGES[0].story; storyNext = 'start0'; state = 'story';
     }
@@ -1483,21 +1672,30 @@ function loop() {
     if (consume) state = 'title';
   } else if (state === 'play') {
     updatePlay();
-    ctx.save();
-    if (shakeT > 0) ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+    // ワールドを低解像度キャンバスへ描き、拡大転送してピクセル化する
+    ctx = octx;
+    octx.setTransform(LW / W, 0, 0, LH / H, 0, 0);
+    if (shakeT > 0) octx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
     drawBackground();
     drawTerrain();
     drawEnemies();
     drawBoss();
     drawPlayer();
     drawBulletsItems();
-    ctx.restore();
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    mainCtx.imageSmoothingEnabled = false;
+    mainCtx.drawImage(off, 0, 0, W, H);
+    ctx = mainCtx;
     if (flashT > 0) {
       ctx.fillStyle = `rgba(255,255,255,${flashT * 0.06})`;
       ctx.fillRect(0, 0, W, H);
     }
     drawHUD();
   }
+
+  // 走査線(CRT 風)
+  mainCtx.fillStyle = 'rgba(0,0,0,0.12)';
+  for (let y = 1; y < H; y += 3) mainCtx.fillRect(0, y, W, 1);
 }
 genTerrain(0);
 loop();
