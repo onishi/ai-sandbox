@@ -18,45 +18,68 @@
     touch-action: none;
   }
   #help { color: #667; font-size: 12px; margin-top: 6px; }
-  /* バーチャルパッド */
-  #touch { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 10; }
-  #touch.on { display: block; }
+  #bar {
+    display: flex; justify-content: center; align-items: center;
+    gap: 12px; margin-top: 6px;
+  }
+  #ver { color: #445; font-size: 11px; }
+  #padToggle {
+    background: #17202f; color: #9ab4cc; border: 1px solid #33465e;
+    border-radius: 6px; font: 12px 'Courier New', monospace; padding: 5px 12px;
+    cursor: pointer;
+  }
+  /* バーチャルパッド: キャンバス直下の通常レイアウトに置く(fixed はラッパー環境で崩れるため) */
+  #touch { display: none; }
+  body.pad-on #touch {
+    display: flex; justify-content: space-between; align-items: center;
+    width: min(100vw, 820px); margin: 8px auto 0; padding: 0 12px;
+    box-sizing: border-box; gap: 12px;
+  }
+  body.pad-on canvas { max-height: calc(100vh - 230px); }
   .tbtn {
-    position: absolute; pointer-events: auto; touch-action: none;
-    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    touch-action: none; user-select: none;
+    -webkit-user-select: none; -webkit-touch-callout: none;
     display: flex; align-items: center; justify-content: center;
     color: rgba(255,255,255,0.85); font-family: 'Courier New', monospace; font-weight: bold;
+    flex-shrink: 0;
   }
   #stick {
-    left: 18px; bottom: 18px; width: 130px; height: 130px; border-radius: 50%;
+    width: 128px; height: 128px; border-radius: 50%;
     background: rgba(120,160,220,0.14); border: 2px solid rgba(140,180,240,0.35);
   }
   #knob {
     width: 52px; height: 52px; border-radius: 50%;
     background: rgba(160,200,255,0.5); pointer-events: none;
   }
+  #rbtns { display: flex; align-items: center; gap: 14px; }
   #btnA {
-    right: 22px; bottom: 30px; width: 92px; height: 92px; border-radius: 50%;
-    background: rgba(255,120,80,0.22); border: 2px solid rgba(255,150,110,0.5); font-size: 18px;
+    width: 90px; height: 90px; border-radius: 50%;
+    background: rgba(255,120,80,0.22); border: 2px solid rgba(255,150,110,0.5); font-size: 17px;
   }
   #btnA:active { background: rgba(255,120,80,0.45); }
   #btnStart {
-    right: 34px; bottom: 140px; width: 100px; height: 42px; border-radius: 21px;
+    width: 92px; height: 40px; border-radius: 20px;
     background: rgba(255,210,100,0.18); border: 2px solid rgba(255,210,100,0.45); font-size: 13px;
   }
   #btnStart:active { background: rgba(255,210,100,0.4); }
-  @media (pointer: coarse) { #help { display: none; } }
+  body.pad-on #help { display: none; }
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="800" height="450"></canvas>
+  <div id="touch">
+    <div id="stick" class="tbtn"><div id="knob"></div></div>
+    <div id="rbtns">
+      <div id="btnStart" class="tbtn">START</div>
+      <div id="btnA" class="tbtn">SHOT</div>
+    </div>
+  </div>
   <div id="help">移動: ←↑→↓ / WASD | ショット: Z or SPACE (押しっぱなし可) | 決定: ENTER</div>
-</div>
-<div id="touch">
-  <div id="stick" class="tbtn"><div id="knob"></div></div>
-  <div id="btnA" class="tbtn">SHOT</div>
-  <div id="btnStart" class="tbtn">START</div>
+  <div id="bar">
+    <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
+    <span id="ver">v4</span>
+  </div>
 </div>
 <script>
 'use strict';
@@ -109,16 +132,22 @@ if (!document.querySelector('meta[name="viewport"]')) {
   m.content = 'width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover';
   document.head.appendChild(m);
 }
-const touchUI = document.getElementById('touch');
-function enablePad() { touchUI.classList.add('on'); }
+function enablePad() { document.body.classList.add('pad-on'); }
 // タッチ環境の判定は複数のシグナルで行う
 if (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0 ||
     matchMedia('(pointer: coarse)').matches || matchMedia('(any-pointer: coarse)').matches) {
   enablePad();
 }
-// 判定漏れ対策: 実際に画面がタッチされたら必ず表示する
-addEventListener('touchstart', enablePad, { once: true, passive: true });
-addEventListener('pointerdown', e => { if (e.pointerType === 'touch') enablePad(); }, { passive: true });
+// 判定漏れ対策: 実際に画面がタッチされたら必ず表示する(切替ボタン上のタッチは除く)
+const notOnToggle = e => !(e.target && e.target.closest && e.target.closest('#bar'));
+addEventListener('touchstart', e => { if (notOnToggle(e)) enablePad(); }, { passive: true });
+addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch' && notOnToggle(e)) enablePad();
+}, { passive: true });
+// 手動切り替えボタン(自動判定が全滅した場合の保険)
+document.getElementById('padToggle').addEventListener('click', () => {
+  document.body.classList.toggle('pad-on');
+});
 
 {
   const stick = document.getElementById('stick');
