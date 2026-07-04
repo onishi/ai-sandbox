@@ -102,16 +102,32 @@ const inp = {
 };
 
 // ---------------- バーチャルパッド(タッチ操作) ----------------
-if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
-  const touchUI = document.getElementById('touch');
-  touchUI.classList.add('on');
+// viewport メタがない環境(ラッパー内で表示される場合など)では動的に追加
+if (!document.querySelector('meta[name="viewport"]')) {
+  const m = document.createElement('meta');
+  m.name = 'viewport';
+  m.content = 'width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover';
+  document.head.appendChild(m);
+}
+const touchUI = document.getElementById('touch');
+function enablePad() { touchUI.classList.add('on'); }
+// タッチ環境の判定は複数のシグナルで行う
+if (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0 ||
+    matchMedia('(pointer: coarse)').matches || matchMedia('(any-pointer: coarse)').matches) {
+  enablePad();
+}
+// 判定漏れ対策: 実際に画面がタッチされたら必ず表示する
+addEventListener('touchstart', enablePad, { once: true, passive: true });
+addEventListener('pointerdown', e => { if (e.pointerType === 'touch') enablePad(); }, { passive: true });
+
+{
   const stick = document.getElementById('stick');
   const knob = document.getElementById('knob');
   const btnA = document.getElementById('btnA');
   const btnStart = document.getElementById('btnStart');
   const R = 44, TH = 14;
   let stickId = null;
-  function setStick(e) {
+  const setStick = e => {
     const r = stick.getBoundingClientRect();
     let dx = e.clientX - (r.left + r.width / 2);
     let dy = e.clientY - (r.top + r.height / 2);
@@ -120,34 +136,49 @@ if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
     knob.style.transform = `translate(${dx}px,${dy}px)`;
     vpad.left = dx < -TH; vpad.right = dx > TH;
     vpad.up = dy < -TH; vpad.down = dy > TH;
-  }
-  function resetStick() {
+  };
+  const resetStick = () => {
     stickId = null;
     knob.style.transform = '';
     vpad.left = vpad.right = vpad.up = vpad.down = false;
-  }
-  stick.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    stickId = e.pointerId;
-    stick.setPointerCapture(e.pointerId);
-    setStick(e);
-  });
-  stick.addEventListener('pointermove', e => { if (e.pointerId === stickId) setStick(e); });
-  stick.addEventListener('pointerup', e => { if (e.pointerId === stickId) resetStick(); });
-  stick.addEventListener('pointercancel', resetStick);
-  btnA.addEventListener('pointerdown', e => {
+  };
+  const shotOn = e => {
     e.preventDefault();
     vpad.shot = true;
     if (state !== 'play') enterEdge = true; // メニュー中は決定ボタンとしても機能
-  });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
-    btnA.addEventListener(ev, () => { vpad.shot = false; });
+  };
+  const shotOff = () => { vpad.shot = false; };
+  const pressStart = e => { e.preventDefault(); enterEdge = true; };
+  if ('PointerEvent' in window) {
+    stick.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      stickId = e.pointerId;
+      try { stick.setPointerCapture(e.pointerId); } catch (err) {}
+      setStick(e);
+    });
+    stick.addEventListener('pointermove', e => { if (e.pointerId === stickId) setStick(e); });
+    stick.addEventListener('pointerup', e => { if (e.pointerId === stickId) resetStick(); });
+    stick.addEventListener('pointercancel', resetStick);
+    btnA.addEventListener('pointerdown', shotOn);
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
+      btnA.addEventListener(ev, shotOff);
+    }
+    btnStart.addEventListener('pointerdown', pressStart);
+    cv.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' && state !== 'play') enterEdge = true;
+    });
+  } else {
+    // Pointer Events 非対応環境向けの touch フォールバック
+    stick.addEventListener('touchstart', e => { e.preventDefault(); setStick(e.touches[0]); }, { passive: false });
+    stick.addEventListener('touchmove', e => { e.preventDefault(); setStick(e.touches[0]); }, { passive: false });
+    stick.addEventListener('touchend', e => { e.preventDefault(); resetStick(); }, { passive: false });
+    stick.addEventListener('touchcancel', resetStick);
+    btnA.addEventListener('touchstart', shotOn, { passive: false });
+    btnA.addEventListener('touchend', shotOff);
+    btnA.addEventListener('touchcancel', shotOff);
+    btnStart.addEventListener('touchstart', pressStart, { passive: false });
+    cv.addEventListener('touchstart', () => { if (state !== 'play') enterEdge = true; }, { passive: true });
   }
-  btnStart.addEventListener('pointerdown', e => { e.preventDefault(); enterEdge = true; });
-  // ゲーム画面タップでもメニューを進められる
-  cv.addEventListener('pointerdown', e => {
-    if (e.pointerType !== 'mouse' && state !== 'play') enterEdge = true;
-  });
 }
 
 // ---------------- ステージ定義 ----------------
