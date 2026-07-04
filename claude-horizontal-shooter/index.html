@@ -15,14 +15,48 @@
     background: #000; image-rendering: pixelated;
     max-width: 100vw; max-height: 100vh;
     box-shadow: 0 0 40px rgba(80, 160, 255, 0.25);
+    touch-action: none;
   }
   #help { color: #667; font-size: 12px; margin-top: 6px; }
+  /* バーチャルパッド */
+  #touch { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 10; }
+  #touch.on { display: block; }
+  .tbtn {
+    position: absolute; pointer-events: auto; touch-action: none;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.85); font-family: 'Courier New', monospace; font-weight: bold;
+  }
+  #stick {
+    left: 18px; bottom: 18px; width: 130px; height: 130px; border-radius: 50%;
+    background: rgba(120,160,220,0.14); border: 2px solid rgba(140,180,240,0.35);
+  }
+  #knob {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(160,200,255,0.5); pointer-events: none;
+  }
+  #btnA {
+    right: 22px; bottom: 30px; width: 92px; height: 92px; border-radius: 50%;
+    background: rgba(255,120,80,0.22); border: 2px solid rgba(255,150,110,0.5); font-size: 18px;
+  }
+  #btnA:active { background: rgba(255,120,80,0.45); }
+  #btnStart {
+    right: 34px; bottom: 140px; width: 100px; height: 42px; border-radius: 21px;
+    background: rgba(255,210,100,0.18); border: 2px solid rgba(255,210,100,0.45); font-size: 13px;
+  }
+  #btnStart:active { background: rgba(255,210,100,0.4); }
+  @media (pointer: coarse) { #help { display: none; } }
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="800" height="450"></canvas>
   <div id="help">移動: ←↑→↓ / WASD | ショット: Z or SPACE (押しっぱなし可) | 決定: ENTER</div>
+</div>
+<div id="touch">
+  <div id="stick" class="tbtn"><div id="knob"></div></div>
+  <div id="btnA" class="tbtn">SHOT</div>
+  <div id="btnStart" class="tbtn">START</div>
 </div>
 <script>
 'use strict';
@@ -58,13 +92,63 @@ addEventListener('keyup', e => {
   keys[e.key] = false;
   if (e.key.length === 1) keys[e.key.toLowerCase()] = false;
 });
+const vpad = { up: false, down: false, left: false, right: false, shot: false };
 const inp = {
-  up:    () => keys['ArrowUp'] || keys['w'],
-  down:  () => keys['ArrowDown'] || keys['s'],
-  left:  () => keys['ArrowLeft'] || keys['a'],
-  right: () => keys['ArrowRight'] || keys['d'],
-  shot:  () => keys['z'] || keys[' '],
+  up:    () => keys['ArrowUp'] || keys['w'] || vpad.up,
+  down:  () => keys['ArrowDown'] || keys['s'] || vpad.down,
+  left:  () => keys['ArrowLeft'] || keys['a'] || vpad.left,
+  right: () => keys['ArrowRight'] || keys['d'] || vpad.right,
+  shot:  () => keys['z'] || keys[' '] || vpad.shot,
 };
+
+// ---------------- バーチャルパッド(タッチ操作) ----------------
+if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
+  const touchUI = document.getElementById('touch');
+  touchUI.classList.add('on');
+  const stick = document.getElementById('stick');
+  const knob = document.getElementById('knob');
+  const btnA = document.getElementById('btnA');
+  const btnStart = document.getElementById('btnStart');
+  const R = 44, TH = 14;
+  let stickId = null;
+  function setStick(e) {
+    const r = stick.getBoundingClientRect();
+    let dx = e.clientX - (r.left + r.width / 2);
+    let dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy);
+    if (d > R) { dx *= R / d; dy *= R / d; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    vpad.left = dx < -TH; vpad.right = dx > TH;
+    vpad.up = dy < -TH; vpad.down = dy > TH;
+  }
+  function resetStick() {
+    stickId = null;
+    knob.style.transform = '';
+    vpad.left = vpad.right = vpad.up = vpad.down = false;
+  }
+  stick.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    stickId = e.pointerId;
+    stick.setPointerCapture(e.pointerId);
+    setStick(e);
+  });
+  stick.addEventListener('pointermove', e => { if (e.pointerId === stickId) setStick(e); });
+  stick.addEventListener('pointerup', e => { if (e.pointerId === stickId) resetStick(); });
+  stick.addEventListener('pointercancel', resetStick);
+  btnA.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    vpad.shot = true;
+    if (state !== 'play') enterEdge = true; // メニュー中は決定ボタンとしても機能
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
+    btnA.addEventListener(ev, () => { vpad.shot = false; });
+  }
+  btnStart.addEventListener('pointerdown', e => { e.preventDefault(); enterEdge = true; });
+  // ゲーム画面タップでもメニューを進められる
+  cv.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' && state !== 'play') enterEdge = true;
+  });
+}
 
 // ---------------- ステージ定義 ----------------
 const STAGES = [
