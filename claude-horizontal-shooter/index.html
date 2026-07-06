@@ -79,7 +79,7 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v13</span>
+    <span id="ver">v14</span>
   </div>
 </div>
 <script>
@@ -131,18 +131,24 @@ function drawSprite(rows, pal, cx, cy) {
     }
   }
 }
-function mirrorRows(top, center) { // 上半分+中心行から上下対称スプライトを作る
-  return top.concat([center], top.slice().reverse());
-}
-// 自機「ソニックレイ」: X-Wing のような後退翼+翼端エンジンナセルと、
-// 長く伸びる機首、コアブースター風の角張ったキャノピーを持つシルエット
-const SPR_PLAYER = mirrorRows([
+// 自機「ソニックレイ」: 上下非対称の実機ジェット風シルエット。
+// 背側に尾翼とキャノピー、腹側に後退翼+丸型エンジンナセルを配置し、
+// 機首は長く伸びる。上下対称にしないことで個性を出している
+const SPR_PLAYER = [
   '........................',
-  '........ogo.............',
-  '.o.....wogo.............',
-  '...o..mwwwww............',
-  '....wmwwwwwwwwwwokr.....',
-], 'oggowwwwwwwwwwwwmwwwwwso');
+  '.o......................',
+  '.o...........oo.........',
+  '.o......wwwwwokw........',
+  '.oo...wwwwwwwwwkro......',
+  '.oowwwwwwwwwwwmwwwwwwww.',
+  'oggowwwwwwwwwwwwwwwmwwso',
+  '....wwwwwokkkkowwwwwww..',
+  '.....mwwwwwwwwwww.......',
+  '....mwwwwwwwww..........',
+  '...mwwwwww..............',
+  '..oggo..................',
+  '...oo...................',
+];
 const PAL_PLAYER = {
   o: '#0d0d10', // 輪郭(黒)
   w: '#f7f4ec', // 主装甲(白、わずかに暖色)
