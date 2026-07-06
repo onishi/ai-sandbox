@@ -79,7 +79,7 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v10</span>
+    <span id="ver">v11</span>
   </div>
 </div>
 <script>
@@ -134,14 +134,16 @@ function drawSprite(rows, pal, cx, cy) {
 function mirrorRows(top, center) { // 上半分+中心行から上下対称スプライトを作る
   return top.concat([center], top.slice().reverse());
 }
-// 自機「ソニックレイ」: 白を基調にした未来的な機体。青/シアンのエネルギーライン、
-// 気泡状キャノピー、双発の琥珀色エンジングロー、背部のセンサーフィンが特徴
+// 自機「ソニックレイ」: 白を基調にした未来的な機体。後退角の主翼+翼端ウィングレット、
+// カナード、段付きキャノピー、尾翼、エンジングローを備えた複雑なシルエット
 const SPR_PLAYER = mirrorRows([
-  '...o..............',
-  '..o...............',
-  '.ob....oc.........',
-  'ogbwwwckcwwwsswo..',
-], 'ogbwwwwccwwwwwwsso');
+  '........................',
+  '.oc.....................',
+  '.oooww..................',
+  'o...bwww................',
+  'o....bwwww..o..oc.......',
+  '.oob..bwwwwwbbwkcwwwsso.',
+], 'oggbwwwwwwwwwwccwwwwbsso');
 const PAL_PLAYER = {
   o: '#101828', // 輪郭(濃紺)
   w: '#f5f9ff', // 主装甲(白)
@@ -1579,43 +1581,43 @@ function drawPlayer() {
   // エンジン炎(3段階アニメ + 左右入力でブースト/減速)
   const boost = inp.right() ? 1.6 : inp.left() ? 0.5 : 1;
   const fl = Math.floor(frame / 3) % 3;
-  glow(-22, 0, 7 * boost, '#ff9030', 0.35);
+  glow(-29, 0, 7 * boost, '#ff9030', 0.35);
   ctx.fillStyle = '#ff7020';
-  ctx.fillRect(-23 - (fl * 2.5 + 3) * boost, -2.5, (6 + fl * 2.5 + 3) * boost, 5);
+  ctx.fillRect(-30 - (fl * 2.5 + 3) * boost, -2.5, (6 + fl * 2.5 + 3) * boost, 5);
   ctx.fillStyle = '#ffd860';
-  ctx.fillRect(-21 - (fl * 1.5 + 2) * boost, -1.2, (4 + fl * 1.5 + 2) * boost, 2.5);
+  ctx.fillRect(-28 - (fl * 1.5 + 2) * boost, -1.2, (4 + fl * 1.5 + 2) * boost, 2.5);
   // 姿勢制御バーニア(移動方向の逆側に噴射)
   ctx.fillStyle = Math.floor(frame / 2) % 2 ? '#c8ecff' : '#8ac8f0';
   if (player.tilt < -0.25) { // 上昇中: 下面後方から噴射
-    ctx.fillRect(-8, 9, 3, 5 + Math.abs(player.tilt) * 4);
-    ctx.fillRect(2, 8, 3, 4 + Math.abs(player.tilt) * 3);
+    ctx.fillRect(-11, 13, 3, 5 + Math.abs(player.tilt) * 4);
+    ctx.fillRect(3, 11, 3, 4 + Math.abs(player.tilt) * 3);
   } else if (player.tilt > 0.25) { // 下降中: 上面後方から噴射
-    ctx.fillRect(-8, -14 - player.tilt * 4, 3, 5 + player.tilt * 4);
-    ctx.fillRect(2, -12 - player.tilt * 3, 3, 4 + player.tilt * 3);
+    ctx.fillRect(-11, -20 - player.tilt * 4, 3, 5 + player.tilt * 4);
+    ctx.fillRect(3, -17 - player.tilt * 3, 3, 4 + player.tilt * 3);
   }
   if (inp.left()) { // 減速: 機首の逆噴射
-    ctx.fillRect(17, -5, 4 + (frame % 3), 2.5);
-    ctx.fillRect(17, 3, 4 + ((frame + 1) % 3), 2.5);
+    ctx.fillRect(23, -6, 4 + (frame % 3), 2.5);
+    ctx.fillRect(23, 4, 4 + ((frame + 1) % 3), 2.5);
   }
   drawSprite(SPR_PLAYER, PAL_PLAYER, 0, 0);
   // 動力コアの明滅(双発エンジン部)
-  glow(-19, 0, 4.5, '#ffd040', 0.4 + 0.25 * Math.sin(frame * 0.25));
+  glow(-26, 0, 4.5, '#ffd040', 0.4 + 0.25 * Math.sin(frame * 0.25));
   // 傾き方向を示すハイライト/シャドウ(機首は回転させず、面の陰影だけで奥行きを表現)
   if (Math.abs(player.tilt) > 0.05) {
     const t = clamp(Math.abs(player.tilt), 0, 1);
     const climbing = player.tilt < 0;
-    const [hiY, shY] = climbing ? [-7, 4.5] : [4.5, -7]; // 上昇: 上面が見える / 下降: 下面が見える
+    const [hiY, shY] = climbing ? [-10, 6.5] : [6.5, -10]; // 上昇: 上面が見える / 下降: 下面が見える
     ctx.fillStyle = `rgba(255,255,255,${0.22 * t})`;
-    ctx.fillRect(-14, hiY, 22, 2.5);
+    ctx.fillRect(-20, hiY, 34, 2.5);
     ctx.fillStyle = `rgba(0,0,0,${0.28 * t})`;
-    ctx.fillRect(-14, shY, 22, 2.5);
+    ctx.fillRect(-20, shY, 34, 2.5);
   }
   ctx.restore();
   // マズルフラッシュ
   if (player.mflash > 0) {
     const mr = 3 + player.mflash * 1.4;
-    glow(x + 24, y + hover, mr + 3, '#ffe080', 0.4);
-    drawDiamond(x + 24, y + hover, mr, player.mflash % 2 ? '#fff8d0' : '#ffd040');
+    glow(x + 30, y + hover, mr + 3, '#ffe080', 0.4);
+    drawDiamond(x + 30, y + hover, mr, player.mflash % 2 ? '#fff8d0' : '#ffd040');
   }
   // シールド(二重リング)
   if (player.shield > 0) {
