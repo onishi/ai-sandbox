@@ -79,7 +79,7 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v8</span>
+    <span id="ver">v9</span>
   </div>
 </div>
 <script>
@@ -1563,8 +1563,10 @@ function drawPlayer() {
   const hover = Math.sin(frame * 0.09) * 0.8; // 停止中もわずかに浮遊
   ctx.save();
   ctx.translate(x, y + hover);
-  ctx.rotate(player.tilt * 0.22);            // バンク(上下移動で傾く)
-  ctx.scale(1, 1 - Math.abs(player.tilt) * 0.18);
+  // バンク(上下移動で「奥行き」に傾く): 機首の向き(中心線)は回転させず、
+  // 機体を上下方向にのみ潰して奥へ傾いたように見せる(純粋な垂直スケール)
+  const squash = 1 - Math.abs(player.tilt) * 0.32;
+  ctx.scale(1, squash);
   // エンジン炎(3段階アニメ + 左右入力でブースト/減速)
   const boost = inp.right() ? 1.6 : inp.left() ? 0.5 : 1;
   const fl = Math.floor(frame / 3) % 3;
@@ -1589,6 +1591,16 @@ function drawPlayer() {
   drawSprite(SPR_PLAYER, PAL_PLAYER, 0, 0);
   // 動力コアの明滅
   glow(-13, 0, 4, '#ffd040', 0.4 + 0.25 * Math.sin(frame * 0.25));
+  // 傾き方向を示すハイライト/シャドウ(機首は回転させず、面の陰影だけで奥行きを表現)
+  if (Math.abs(player.tilt) > 0.05) {
+    const t = clamp(Math.abs(player.tilt), 0, 1);
+    const climbing = player.tilt < 0;
+    const [hiY, shY] = climbing ? [-7, 4.5] : [4.5, -7]; // 上昇: 上面が見える / 下降: 下面が見える
+    ctx.fillStyle = `rgba(255,255,255,${0.22 * t})`;
+    ctx.fillRect(-14, hiY, 22, 2.5);
+    ctx.fillStyle = `rgba(0,0,0,${0.28 * t})`;
+    ctx.fillRect(-14, shY, 22, 2.5);
+  }
   ctx.restore();
   // マズルフラッシュ
   if (player.mflash > 0) {
