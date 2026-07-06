@@ -79,7 +79,7 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v11</span>
+    <span id="ver">v12</span>
   </div>
 </div>
 <script>
@@ -134,23 +134,23 @@ function drawSprite(rows, pal, cx, cy) {
 function mirrorRows(top, center) { // 上半分+中心行から上下対称スプライトを作る
   return top.concat([center], top.slice().reverse());
 }
-// 自機「ソニックレイ」: 白を基調にした未来的な機体。後退角の主翼+翼端ウィングレット、
-// カナード、段付きキャノピー、尾翼、エンジングローを備えた複雑なシルエット
+// 自機「ソニックレイ」: 白 + えんじ色 + 黒縁取りの往年のロボットアニメ風配色。
+// 後退角の主翼+翼端ウィングレット、カナード、段付きキャノピー、尾翼、エンジングロー
 const SPR_PLAYER = mirrorRows([
   '........................',
-  '.oc.....................',
+  '.or.....................',
   '.oooww..................',
-  'o...bwww................',
-  'o....bwwww..o..oc.......',
-  '.oob..bwwwwwbbwkcwwwsso.',
-], 'oggbwwwwwwwwwwccwwwwbsso');
+  'o...mwww................',
+  'o....mwwww..o..or.......',
+  '.oom..mwwwwwmmwkrwwwsso.',
+], 'oggmwwwwwwwwwwrrwwwwmsso');
 const PAL_PLAYER = {
-  o: '#101828', // 輪郭(濃紺)
-  w: '#f5f9ff', // 主装甲(白)
-  s: '#c7d6ea', // 機首の陰影(淡いブルーグレー)
-  b: '#2f6fe8', // アクセントトリム(ロイヤルブルー)
-  c: '#59e9ff', // キャノピー/エネルギーライン(シアン)
-  k: '#12202c', // コクピット窓の陰
+  o: '#0d0d10', // 輪郭(黒)
+  w: '#f7f4ec', // 主装甲(白、わずかに暖色)
+  s: '#cfd0d2', // 機首の陰影(ニュートラルグレー)
+  m: '#7a0f1c', // アクセントトリム(えんじ色/マルーン)
+  r: '#e2202f', // キャノピー/ライン(鮮やかな赤)
+  k: '#141014', // コクピット窓の陰
   g: '#ffcf4d', // エンジングロー(琥珀)
 };
 // 4x5 ミニフォント(アイテム文字用)
