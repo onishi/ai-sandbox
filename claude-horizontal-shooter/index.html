@@ -79,7 +79,7 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v7</span>
+    <span id="ver">v8</span>
   </div>
 </div>
 <script>
@@ -131,28 +131,17 @@ function drawSprite(rows, pal, cx, cy) {
     }
   }
 }
-const SPR_PLAYER = [
-  '..oo............',
-  '..oddo..........',
-  '..odddoo........',
-  '.oddmmmdoooo....',
-  'oodmmlccmmddoo..',
-  '.oddmmmdoooo....',
-  '..odddoo........',
-  '..oddo..........',
-  '..oo............',
-];
-const PAL_PLAYER = { o: '#16243e', d: '#4a7ab8', m: '#7fb2e8', l: '#d8f0ff', c: '#40e8ff' };
-const SPR_ZAKO = [
-  '......oo..',
-  '..ooooddo.',
-  '.odddddddo',
-  'odmmlmmddo',
-  '.odddddddo',
-  '..ooooddo.',
-  '......oo..',
-];
-const PAL_ZAKO = { o: '#3a0f0c', d: '#c83a28', m: '#f07858', l: '#ffd8b0' };
+function mirrorRows(top, center) { // 上半分+中心行から上下対称スプライトを作る
+  return top.concat([center], top.slice().reverse());
+}
+// 自機「ソニックレイ」: 角張った装甲・尾翼・動力コア(g)が光るメカデザイン
+const SPR_PLAYER = mirrorRows([
+  '....oo............',
+  '....odoo..........',
+  '..ooddldo..oo.....',
+  '.odmlmmldooddo....',
+], 'odgmmmmlccmddddoo.');
+const PAL_PLAYER = { o: '#101828', d: '#3d4f66', m: '#6e86a4', l: '#aac2d8', c: '#38e0ff', g: '#ffd040' };
 // 4x5 ミニフォント(アイテム文字用)
 const MINI_FONT = {
   P: ['111.', '1..1', '111.', '1...', '1...'],
@@ -605,7 +594,7 @@ let stageBanner = 0;
 const player = {
   x: 100, y: 225, w: 26, h: 14,
   speedLv: 0, power: 1, missileLv: 0, shield: 0, options: 0,
-  inv: 0, cool: 0, missileCool: 0, mflash: 0, alive: true, deadT: 0,
+  inv: 0, cool: 0, missileCool: 0, mflash: 0, tilt: 0, alive: true, deadT: 0,
 };
 let trail = []; // オプションが辿る自機の軌跡
 let bullets = [], ebullets = [], enemies = [], items = [], particles = [], events = [];
@@ -987,6 +976,9 @@ function updatePlayer() {
   if (inp.down()) player.y += sp;
   if (inp.left()) player.x -= sp;
   if (inp.right()) player.x += sp * 0.9;
+  // 上下移動に合わせて機体が傾く(なめらかに追従)
+  const vertIn = (inp.down() ? 1 : 0) - (inp.up() ? 1 : 0);
+  player.tilt += (vertIn - player.tilt) * 0.18;
   if (stageIdx === 3) player.y += Math.sin(frame * 0.012) * 0.7; // 嵐の乱気流
   player.x = clamp(player.x, 20, W - 40);
   player.y = clamp(player.y, 16, H - 16);
@@ -1568,19 +1560,41 @@ function drawPlayer() {
   if (!player.alive) return;
   if (player.inv > 0 && Math.floor(frame / 4) % 2 === 0) return;
   const { x, y } = player;
-  // エンジン炎(3段階アニメ + 排気光)
+  const hover = Math.sin(frame * 0.09) * 0.8; // 停止中もわずかに浮遊
+  ctx.save();
+  ctx.translate(x, y + hover);
+  ctx.rotate(player.tilt * 0.22);            // バンク(上下移動で傾く)
+  ctx.scale(1, 1 - Math.abs(player.tilt) * 0.18);
+  // エンジン炎(3段階アニメ + 左右入力でブースト/減速)
+  const boost = inp.right() ? 1.6 : inp.left() ? 0.5 : 1;
   const fl = Math.floor(frame / 3) % 3;
-  glow(x - 22, y, 7, '#ff9030', 0.35);
+  glow(-22, 0, 7 * boost, '#ff9030', 0.35);
   ctx.fillStyle = '#ff7020';
-  ctx.fillRect(x - 23 - fl * 2.5, y - 2.5, 6 + fl * 2.5, 5);
+  ctx.fillRect(-23 - (fl * 2.5 + 3) * boost, -2.5, (6 + fl * 2.5 + 3) * boost, 5);
   ctx.fillStyle = '#ffd860';
-  ctx.fillRect(x - 21 - fl * 1.5, y - 1.2, 4 + fl * 1.5, 2.5);
-  drawSprite(SPR_PLAYER, PAL_PLAYER, x, y);
+  ctx.fillRect(-21 - (fl * 1.5 + 2) * boost, -1.2, (4 + fl * 1.5 + 2) * boost, 2.5);
+  // 姿勢制御バーニア(移動方向の逆側に噴射)
+  ctx.fillStyle = Math.floor(frame / 2) % 2 ? '#c8ecff' : '#8ac8f0';
+  if (player.tilt < -0.25) { // 上昇中: 下面後方から噴射
+    ctx.fillRect(-8, 9, 3, 5 + Math.abs(player.tilt) * 4);
+    ctx.fillRect(2, 8, 3, 4 + Math.abs(player.tilt) * 3);
+  } else if (player.tilt > 0.25) { // 下降中: 上面後方から噴射
+    ctx.fillRect(-8, -14 - player.tilt * 4, 3, 5 + player.tilt * 4);
+    ctx.fillRect(2, -12 - player.tilt * 3, 3, 4 + player.tilt * 3);
+  }
+  if (inp.left()) { // 減速: 機首の逆噴射
+    ctx.fillRect(17, -5, 4 + (frame % 3), 2.5);
+    ctx.fillRect(17, 3, 4 + ((frame + 1) % 3), 2.5);
+  }
+  drawSprite(SPR_PLAYER, PAL_PLAYER, 0, 0);
+  // 動力コアの明滅
+  glow(-13, 0, 4, '#ffd040', 0.4 + 0.25 * Math.sin(frame * 0.25));
+  ctx.restore();
   // マズルフラッシュ
   if (player.mflash > 0) {
     const mr = 3 + player.mflash * 1.4;
-    glow(x + 22, y, mr + 3, '#ffe080', 0.4);
-    drawDiamond(x + 22, y, mr, player.mflash % 2 ? '#fff8d0' : '#ffd040');
+    glow(x + 24, y + hover, mr + 3, '#ffe080', 0.4);
+    drawDiamond(x + 24, y + hover, mr, player.mflash % 2 ? '#fff8d0' : '#ffd040');
   }
   // シールド(二重リング)
   if (player.shield > 0) {
@@ -1596,139 +1610,297 @@ function drawPlayer() {
 function drawEnemies() {
   for (const e of enemies) {
     switch (e.type) {
-      case 'zako':
-        drawSprite(SPR_ZAKO, PAL_ZAKO, e.x, e.y);
+      case 'zako': {
+        // 幼生体: 尾を振って泳ぐ(頭が進行方向=左)
+        const wig = Math.sin(e.t * 0.28);
+        // 尾
+        ctx.strokeStyle = '#7a2a50'; ctx.lineWidth = 4.5;
+        ctx.beginPath(); ctx.moveTo(e.x + 6, e.y);
+        ctx.quadraticCurveTo(e.x + 13, e.y + wig * 3, e.x + 19, e.y + wig * 7);
+        ctx.stroke();
+        ctx.strokeStyle = '#d878a0'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(e.x + 6, e.y);
+        ctx.quadraticCurveTo(e.x + 13, e.y + wig * 3, e.x + 18, e.y + wig * 6.5);
+        ctx.stroke();
+        // 背ビレ(尾の動きと逆に揺れる)
+        ctx.fillStyle = '#d878a0';
+        ctx.beginPath();
+        ctx.moveTo(e.x + 2, e.y - 6); ctx.lineTo(e.x + 5, e.y - 10 - wig * 2); ctx.lineTo(e.x + 7, e.y - 5);
+        ctx.closePath(); ctx.fill();
+        // 体(脈動)
+        const pz = 1 + Math.sin(e.t * 0.14) * 0.08;
+        ctx.fillStyle = '#5a1838';
+        ctx.beginPath(); ctx.ellipse(e.x, e.y, 11 * pz, 8 * pz, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#b84a78';
+        ctx.beginPath(); ctx.ellipse(e.x - 1, e.y - 1, 9.5 * pz, 6.5 * pz, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f0a0b8';
+        ctx.beginPath(); ctx.ellipse(e.x - 2, e.y + 2, 6 * pz, 3 * pz, 0, 0, Math.PI * 2); ctx.fill();
+        // 単眼
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(e.x - 5, e.y - 1.5, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#301020';
+        ctx.beginPath(); ctx.arc(e.x - 6.5, e.y - 1.5, 1.8, 0, Math.PI * 2); ctx.fill();
         break;
+      }
       case 'wave': {
-        const base = e.carry ? '#ff8830' : '#d060d0';
-        const dark = e.carry ? '#a04008' : '#702070';
-        if (e.carry) glow(e.x, e.y, 13, '#ffb060', 0.25 + 0.15 * Math.sin(frame * 0.15));
+        // 胞子クラゲ: 傘が脈動し触手がなびく
+        const base = e.carry ? '#ff8830' : '#a860d8';
+        const dark = e.carry ? '#8a3808' : '#5a2080';
+        const lite = e.carry ? '#ffd090' : '#e0b0ff';
+        const pu = Math.sin(e.t * 0.15);
+        const br = 8.5 + pu * 1.8; // 傘の半径
+        if (e.carry) glow(e.x, e.y, 14, '#ffb060', 0.25 + 0.15 * Math.sin(frame * 0.15));
+        // 触手 3本
+        ctx.strokeStyle = dark; ctx.lineWidth = 2;
+        for (let k = -1; k <= 1; k++) {
+          const sw = Math.sin(e.t * 0.2 + k * 1.8);
+          ctx.beginPath(); ctx.moveTo(e.x + k * 4, e.y + br - 3);
+          ctx.quadraticCurveTo(e.x + k * 6 + sw * 2, e.y + br + 6, e.x + k * 7 + sw * 5, e.y + br + 12);
+          ctx.stroke();
+        }
+        // 傘
         ctx.fillStyle = dark;
-        ctx.beginPath(); ctx.arc(e.x, e.y, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(e.x, e.y, br + 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = base;
-        ctx.beginPath(); ctx.arc(e.x - 1, e.y - 1, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = Math.floor(frame / 5 + e.t / 9) % 2 ? '#fff0ff' : '#ffd0f0';
-        ctx.fillRect(e.x - 3, e.y - 3, 5, 5);
+        ctx.beginPath(); ctx.arc(e.x, e.y - 0.5, br, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = lite;
+        ctx.beginPath(); ctx.arc(e.x - br * 0.25, e.y - br * 0.35, br * 0.4, 0, Math.PI * 2); ctx.fill();
+        // 核(明滅)
+        ctx.fillStyle = Math.floor(frame / 5 + e.t / 9) % 2 ? '#fff0ff' : lite;
+        ctx.beginPath(); ctx.arc(e.x, e.y + 1, 3, 0, Math.PI * 2); ctx.fill();
         break;
       }
       case 'turret': {
         const dir = e.ceil ? -1 : 1;
-        // 台座
-        ctx.fillStyle = '#3c414f';
-        ctx.fillRect(e.x - 16, e.y + 6 * dir, 32, 6 * dir > 0 ? 6 : -6);
-        ctx.fillStyle = '#5a6272';
-        ctx.fillRect(e.x - 13, e.y - 10, 26, 20);
-        ctx.fillStyle = '#7c8698';
-        ctx.fillRect(e.x - 13, e.y - 10 - (dir < 0 ? -16 : 0), 26, 4);
-        // リベット
-        ctx.fillStyle = '#2c3038';
-        ctx.fillRect(e.x - 11, e.y - 3, 3, 3);
-        ctx.fillRect(e.x + 8, e.y - 3, 3, 3);
-        // 砲身(二重線)
         const a = Math.atan2(player.y - e.y, player.x - e.x);
-        ctx.strokeStyle = '#20242c'; ctx.lineWidth = 6;
-        ctx.beginPath(); ctx.moveTo(e.x, e.y);
-        ctx.lineTo(e.x + Math.cos(a) * 17, e.y + Math.sin(a) * 17); ctx.stroke();
-        ctx.strokeStyle = '#9aa4b8'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(e.x, e.y);
-        ctx.lineTo(e.x + Math.cos(a) * 15, e.y + Math.sin(a) * 15); ctx.stroke();
-        // センサー
-        ctx.fillStyle = (Math.floor(frame / 12) % 2) ? '#ff4040' : '#801010';
-        ctx.fillRect(e.x - 2, e.y - 2, 4, 4);
+        const breathe = 1 + Math.sin(e.t * 0.1) * 0.09;
+        const preFire = e.t % 95 > 78; // 発射前に目が見開く
+        // 根(地面を掴む)
+        ctx.strokeStyle = '#3a1444'; ctx.lineWidth = 4;
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath(); ctx.moveTo(e.x, e.y + 4 * dir);
+          ctx.quadraticCurveTo(e.x + k * 8, e.y + 9 * dir, e.x + k * 14, e.y + 12 * dir);
+          ctx.stroke();
+        }
+        // 球根状の体(呼吸)
+        ctx.fillStyle = '#3a1444';
+        ctx.beginPath(); ctx.ellipse(e.x, e.y, 13 * breathe, 11 * breathe, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#7a3898';
+        ctx.beginPath(); ctx.ellipse(e.x, e.y, 11 * breathe, 9 * breathe, 0, 0, Math.PI * 2); ctx.fill();
+        // 斑点
+        ctx.fillStyle = '#b070d0';
+        ctx.fillRect(e.x - 6, e.y - 4, 3, 3);
+        ctx.fillRect(e.x + 3, e.y + 1, 3, 3);
+        ctx.fillRect(e.x - 1, e.y - 8 * dir, 3, 3);
+        // 眼柄(自機を狙う。ここから撃つ)
+        const sway = Math.sin(e.t * 0.07) * 0.1;
+        const ex = e.x + Math.cos(a + sway) * 15, ey = e.y + Math.sin(a + sway) * 15;
+        ctx.strokeStyle = '#5a2478'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(ex, ey); ctx.stroke();
+        if (preFire) glow(ex, ey, 8, '#ff5060', 0.4);
+        ctx.fillStyle = '#f0e8ff';
+        ctx.beginPath(); ctx.arc(ex, ey, preFire ? 6.5 : 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = preFire ? '#ff2030' : '#701030';
+        ctx.beginPath(); ctx.arc(ex + Math.cos(a) * 1.5, ey + Math.sin(a) * 1.5, preFire ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill();
         break;
       }
-      case 'hover':
-        // 反重力サーカー: ドーム + 2トーンボディ + 底部ライト
-        ctx.fillStyle = '#2a5e54';
-        ctx.beginPath(); ctx.ellipse(e.x, e.y + 2, 16, 9, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#50b0a0';
-        ctx.beginPath(); ctx.ellipse(e.x - 1, e.y, 15, 8, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#b8ecdc';
-        ctx.beginPath(); ctx.arc(e.x, e.y - 5, 6, Math.PI, 0); ctx.fill();
-        ctx.fillStyle = '#104038';
-        ctx.fillRect(e.x - 4, e.y - 7, 8, 5);
-        for (let i = -1; i <= 1; i++) {
-          ctx.fillStyle = (Math.floor(frame / 8) + i) % 3 ? '#ffe060' : '#906010';
-          ctx.fillRect(e.x + i * 8 - 1.5, e.y + 7, 3, 3);
-        }
-        break;
-      case 'stalactite': {
-        const light = stageIdx === 2 ? '#e8f4ff' : '#b0a0e0';
-        const dark = stageIdx === 2 ? '#9cc0e8' : '#7a6ab0';
-        ctx.fillStyle = dark;
+      case 'hover': {
+        // 飛翔蛾: 羽ばたく翅 + 節のある胴体
+        const flap = Math.sin(e.t * 0.35);
+        // 翅(上下に羽ばたく)
+        ctx.fillStyle = 'rgba(104,200,160,0.75)';
         ctx.beginPath();
-        ctx.moveTo(e.x - 8, e.y - 17); ctx.lineTo(e.x + 8, e.y - 17); ctx.lineTo(e.x, e.y + 17);
+        ctx.moveTo(e.x - 2, e.y - 2);
+        ctx.lineTo(e.x - 14, e.y - 8 - flap * 8);
+        ctx.lineTo(e.x + 8, e.y - 5 - flap * 5);
         ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(e.x - 2, e.y + 2);
+        ctx.lineTo(e.x - 14, e.y + 8 + flap * 8);
+        ctx.lineTo(e.x + 8, e.y + 5 + flap * 5);
+        ctx.closePath(); ctx.fill();
+        // 胴体(3節)
+        for (let s = 0; s < 3; s++) {
+          ctx.fillStyle = s % 2 ? '#2a6e54' : '#3a8a6a';
+          ctx.beginPath(); ctx.ellipse(e.x - 6 + s * 7, e.y, 6, 5.5 - s, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        // 複眼(2つ、明滅)
+        ctx.fillStyle = (Math.floor(frame / 9) % 2) ? '#ffe060' : '#c09020';
+        ctx.beginPath(); ctx.arc(e.x - 10, e.y - 2.5, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(e.x - 10, e.y + 2.5, 2.5, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'stalactite': {
+        // 寄生根フェイング: 天井から垂れる有機の牙(氷結峡谷では半透明の氷奇生体)
+        const light = stageIdx === 2 ? '#d8f0ff' : '#c8a8e0';
+        const mid = stageIdx === 2 ? '#a8d0f0' : '#8a68b8';
+        const dark = stageIdx === 2 ? '#6098c8' : '#4a2870';
+        const sway = e.fell ? 0 : Math.sin(e.t * 0.05) * 2; // 待機中はわずかに揺れる
+        // 節くれだった芯(2節)
+        ctx.strokeStyle = dark; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(e.x + sway, e.y - 18);
+        ctx.quadraticCurveTo(e.x + sway * 0.5, e.y, e.x, e.y + 17);
+        ctx.stroke();
+        ctx.strokeStyle = mid; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.moveTo(e.x + sway, e.y - 17);
+        ctx.quadraticCurveTo(e.x + sway * 0.5, e.y - 1, e.x - 1, e.y + 14);
+        ctx.stroke();
+        // 膨らんだ節(有機感)
+        for (let s = 0; s < 3; s++) {
+          const sy = e.y - 12 + s * 10;
+          const sx = e.x + sway * (1 - s / 3);
+          const r = 5 - s * 0.6;
+          ctx.fillStyle = dark;
+          ctx.beginPath(); ctx.ellipse(sx, sy, r + 1, r * 0.8 + 1, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = mid;
+          ctx.beginPath(); ctx.ellipse(sx - 1, sy - 1, r, r * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        // 牙の先端(尖った捕食部)
         ctx.fillStyle = light;
         ctx.beginPath();
-        ctx.moveTo(e.x - 8, e.y - 17); ctx.lineTo(e.x, e.y - 17); ctx.lineTo(e.x - 2, e.y + 10);
+        ctx.moveTo(e.x - 3 + sway * 0.3, e.y + 10); ctx.lineTo(e.x + sway * 0.3, e.y + 18); ctx.lineTo(e.x + 3 + sway * 0.3, e.y + 10);
         ctx.closePath(); ctx.fill();
+        // 目(落下前は閉じ、落下中に見開く)
+        if (e.fell) {
+          glow(e.x + sway, e.y - 4, 5, '#ff5050', 0.3);
+          ctx.fillStyle = '#ffe0a0';
+          ctx.beginPath(); ctx.arc(e.x + sway, e.y - 4, 2.2, 0, Math.PI * 2); ctx.fill();
+        }
         break;
       }
       case 'crusher': {
-        // 装甲ブロック + 警告ストライプ
-        ctx.fillStyle = '#3c414f';
+        // 甲殻獣: キチン質の装甲節 + 脈打つ心臓核 + 骨質の棘
+        const beat = 1 + Math.max(0, Math.sin(e.t * 0.12)) * 0.25;
+        ctx.fillStyle = '#2a1030';
         ctx.fillRect(e.x - 17, e.y - 30, 34, 60);
-        ctx.fillStyle = '#5a6272';
-        ctx.fillRect(e.x - 14, e.y - 27, 28, 54);
-        ctx.fillStyle = '#7c8698';
-        ctx.fillRect(e.x - 14, e.y - 27, 28, 5);
-        for (let s = 0; s < 4; s++) {
-          ctx.fillStyle = s % 2 ? '#ffd020' : '#20242c';
-          ctx.fillRect(e.x - 14 + s * 7, e.y - 30, 7, 4);
-          ctx.fillRect(e.x - 14 + s * 7, e.y + 26, 7, 4);
+        for (let s = 0; s < 4; s++) { // 装甲節(交互の色)
+          ctx.fillStyle = s % 2 ? '#5a3068' : '#4a2458';
+          ctx.fillRect(e.x - 14, e.y - 27 + s * 14, 28, 13);
+          ctx.fillStyle = '#7a4888';
+          ctx.fillRect(e.x - 14, e.y - 27 + s * 14, 28, 3);
         }
-        ctx.fillStyle = (Math.floor(frame / 20) % 2) ? '#ff6050' : '#903028';
-        ctx.fillRect(e.x - 5, e.y - 5, 10, 10);
-        ctx.fillStyle = '#ffd0c0';
-        ctx.fillRect(e.x - 2, e.y - 2, 4, 4);
+        // 骨質の棘(上下)
+        ctx.fillStyle = '#e8dcc8';
+        for (let s = -1; s <= 1; s++) {
+          ctx.beginPath();
+          ctx.moveTo(e.x + s * 9 - 4, e.y - 29); ctx.lineTo(e.x + s * 9, e.y - 37); ctx.lineTo(e.x + s * 9 + 4, e.y - 29);
+          ctx.closePath(); ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(e.x + s * 9 - 4, e.y + 29); ctx.lineTo(e.x + s * 9, e.y + 37); ctx.lineTo(e.x + s * 9 + 4, e.y + 29);
+          ctx.closePath(); ctx.fill();
+        }
+        // 心臓核(鼓動)
+        glow(e.x, e.y, 10 * beat, '#ff4050', 0.3);
+        ctx.fillStyle = '#801828';
+        ctx.beginPath(); ctx.arc(e.x, e.y, 7 * beat, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ff5060';
+        ctx.beginPath(); ctx.arc(e.x, e.y, 4.5 * beat, 0, Math.PI * 2); ctx.fill();
         break;
       }
-      case 'diver':
-        // 急降下機(下向き・輪郭とハイライト付き)
-        ctx.fillStyle = '#6a5a18';
+      case 'diver': {
+        // 急襲蜂: 縞模様の腹部 + 針 + 翅(降下中は畳み、減速すると開く)
+        const spread = clamp(1.4 - e.vy * 0.35, 0.2, 1); // 翅の開き
+        const bz = Math.sin(e.t * 0.5);
+        ctx.fillStyle = 'rgba(240,230,180,0.7)';
         ctx.beginPath();
-        ctx.moveTo(e.x, e.y + 12); ctx.lineTo(e.x - 10, e.y - 9); ctx.lineTo(e.x + 10, e.y - 9);
+        ctx.moveTo(e.x - 3, e.y - 6);
+        ctx.lineTo(e.x - 4 - 11 * spread, e.y - 10 - bz * 3 * spread);
+        ctx.lineTo(e.x - 6, e.y - 1);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#e0c050';
         ctx.beginPath();
-        ctx.moveTo(e.x, e.y + 9); ctx.lineTo(e.x - 7, e.y - 7); ctx.lineTo(e.x + 7, e.y - 7);
+        ctx.moveTo(e.x + 3, e.y - 6);
+        ctx.lineTo(e.x + 4 + 11 * spread, e.y - 10 + bz * 3 * spread);
+        ctx.lineTo(e.x + 6, e.y - 1);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#fff0b0';
-        ctx.fillRect(e.x - 2, e.y - 6, 4, 4);
-        // 降下ブースト炎
-        if (e.vy > 1) {
-          ctx.fillStyle = Math.floor(frame / 3) % 2 ? '#ffb040' : '#ff7020';
-          ctx.fillRect(e.x - 2.5, e.y - 14, 5, 6);
+        // 腹部(縞)
+        ctx.fillStyle = '#4a3808';
+        ctx.beginPath(); ctx.ellipse(e.x, e.y, 8, 11, 0, 0, Math.PI * 2); ctx.fill();
+        for (let s = 0; s < 3; s++) {
+          ctx.fillStyle = s % 2 ? '#e0b830' : '#6a5010';
+          ctx.fillRect(e.x - 6.5, e.y - 5 + s * 5, 13, 4);
         }
+        // 頭 + 複眼
+        ctx.fillStyle = '#6a5010';
+        ctx.beginPath(); ctx.arc(e.x, e.y - 9, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#301c04';
+        ctx.beginPath(); ctx.arc(e.x - 2, e.y - 10, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(e.x + 2, e.y - 10, 1.8, 0, Math.PI * 2); ctx.fill();
+        // 針
+        ctx.fillStyle = '#e8dcc8';
+        ctx.beginPath();
+        ctx.moveTo(e.x - 3, e.y + 9); ctx.lineTo(e.x, e.y + 16); ctx.lineTo(e.x + 3, e.y + 9);
+        ctx.closePath(); ctx.fill();
         break;
-      case 'popup':
-        if (e.y > floorAt(e.wx) + 4) break; // 雲海に潜っている間は見えない
-        ctx.fillStyle = '#4c6078';
-        ctx.fillRect(e.x - 13, e.y - 4, 26, 13);
-        ctx.fillStyle = '#7890a8';
-        ctx.fillRect(e.x - 11, e.y - 3, 22, 9);
-        ctx.fillStyle = '#a8c0d8';
-        ctx.beginPath(); ctx.arc(e.x, e.y - 6, 8, Math.PI, 0); ctx.fill();
-        ctx.fillStyle = '#203040';
-        ctx.fillRect(e.x - 4, e.y - 11, 8, 5);
-        ctx.fillStyle = (Math.floor(frame / 10) % 2) ? '#ffe060' : '#906010';
-        ctx.fillRect(e.x + 9, e.y - 8, 3, 3);
+      }
+      case 'popup': {
+        const fy2 = floorAt(e.wx);
+        if (e.y > fy2 + 4) break; // 雲海に潜っている間は見えない
+        // 潜伏蛇: 雲海から伸びる首 + 頭部(顎の開閉)
+        const sway = Math.sin(e.t * 0.06) * 3;
+        ctx.strokeStyle = '#3a5a48'; ctx.lineWidth = 9;
+        ctx.beginPath(); ctx.moveTo(e.x + sway, Math.min(fy2 + 8, e.y + 40));
+        ctx.quadraticCurveTo(e.x - sway, (e.y + fy2) / 2, e.x, e.y + 4);
+        ctx.stroke();
+        ctx.strokeStyle = '#5a8a68'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(e.x + sway, Math.min(fy2 + 8, e.y + 38));
+        ctx.quadraticCurveTo(e.x - sway, (e.y + fy2) / 2, e.x, e.y + 4);
+        ctx.stroke();
+        // 頭部
+        const jaw2 = e.phase === 2 ? 3 + Math.max(0, Math.sin(e.t2 * 0.11)) * 4 : 1;
+        ctx.fillStyle = '#3a5a48';
+        ctx.beginPath(); ctx.ellipse(e.x, e.y - 4, 11, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#6aa87c';
+        ctx.beginPath(); ctx.ellipse(e.x - 1, e.y - 5, 9, 6.5, 0, 0, Math.PI * 2); ctx.fill();
+        // 顎
+        ctx.fillStyle = '#3a5a48';
+        ctx.beginPath();
+        ctx.moveTo(e.x - 9, e.y - 3); ctx.lineTo(e.x - 12, e.y + 1 + jaw2); ctx.lineTo(e.x - 2, e.y + 1);
+        ctx.closePath(); ctx.fill();
+        // 目(発射フェーズで光る)
+        const hot = e.phase === 2;
+        if (hot) glow(e.x - 5, e.y - 7, 6, '#ffe060', 0.4);
+        ctx.fillStyle = hot ? '#ffe060' : '#c8e8a0';
+        ctx.beginPath(); ctx.arc(e.x - 5, e.y - 7, 2.6, 0, Math.PI * 2); ctx.fill();
         break;
-      case 'carrier':
-        // アイテム運搬機(発光 + 点滅ビーコン)
-        glow(e.x, e.y, 15, '#ffa040', 0.2 + 0.12 * Math.sin(frame * 0.12));
-        ctx.fillStyle = '#a04008';
-        ctx.fillRect(e.x - 14, e.y - 10, 28, 20);
-        ctx.fillStyle = '#ff8830';
-        ctx.fillRect(e.x - 12, e.y - 8, 24, 16);
-        ctx.fillStyle = '#ffc890';
-        ctx.fillRect(e.x - 12, e.y - 8, 24, 4);
-        ctx.fillStyle = '#602800';
-        ctx.fillRect(e.x - 4, e.y - 4, 9, 9);
-        ctx.fillStyle = (Math.floor(frame / 8) % 2) ? '#ffffff' : '#ffd040';
-        ctx.fillRect(e.x - 1.5, e.y - 13, 3, 3);
+      }
+      case 'carrier': {
+        // 運び手: 光る卵嚢を抱えた羽虫。倒すと中のアイテムが出る
+        const flap2 = Math.sin(e.t * 0.4);
+        glow(e.x, e.y + 3, 14, '#ffa040', 0.25 + 0.15 * Math.sin(frame * 0.12));
+        // 翅(高速で羽ばたく)
+        ctx.fillStyle = 'rgba(255,220,170,0.65)';
+        ctx.beginPath();
+        ctx.moveTo(e.x - 4, e.y - 6);
+        ctx.lineTo(e.x - 12, e.y - 15 - flap2 * 5);
+        ctx.lineTo(e.x + 2, e.y - 9);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(e.x + 4, e.y - 6);
+        ctx.lineTo(e.x + 12, e.y - 15 + flap2 * 5);
+        ctx.lineTo(e.x - 2, e.y - 9);
+        ctx.closePath(); ctx.fill();
+        // 本体(小さな頭 + 脚)
+        ctx.fillStyle = '#8a4808';
+        ctx.beginPath(); ctx.arc(e.x, e.y - 7, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#8a4808'; ctx.lineWidth = 2;
+        for (let k = -1; k <= 1; k += 2) {
+          ctx.beginPath(); ctx.moveTo(e.x + k * 3, e.y - 4);
+          ctx.lineTo(e.x + k * 7, e.y + 2); ctx.lineTo(e.x + k * 5, e.y + 8);
+          ctx.stroke();
+        }
+        // 卵嚢(半透明・中でアイテムが明滅)
+        const sacP = 1 + Math.sin(e.t * 0.1) * 0.07;
+        ctx.fillStyle = 'rgba(255,150,60,0.55)';
+        ctx.beginPath(); ctx.ellipse(e.x, e.y + 4, 10 * sacP, 11 * sacP, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#c86818'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(e.x, e.y + 4, 10 * sacP, 11 * sacP, 0, 0, Math.PI * 2); ctx.stroke();
+        drawDiamond(e.x, e.y + 4, 4 + Math.sin(frame * 0.2) * 1.2, '#fff0d0');
+        // 目
+        ctx.fillStyle = '#ffe060';
+        ctx.fillRect(e.x - 4, e.y - 9, 2.5, 2.5);
+        ctx.fillRect(e.x + 1.5, e.y - 9, 2.5, 2.5);
         break;
+      }
     }
   }
 }
