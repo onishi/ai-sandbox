@@ -79,7 +79,7 @@
   <div id="bar">
     <button id="padToggle" type="button">🎮 タッチ操作 ON/OFF</button>
     <button id="sndToggle" type="button">🔊</button>
-    <span id="ver">v8</span>
+    <span id="ver">v14</span>
   </div>
 </div>
 <script>
@@ -131,17 +131,33 @@ function drawSprite(rows, pal, cx, cy) {
     }
   }
 }
-function mirrorRows(top, center) { // 上半分+中心行から上下対称スプライトを作る
-  return top.concat([center], top.slice().reverse());
-}
-// 自機「ソニックレイ」: 角張った装甲・尾翼・動力コア(g)が光るメカデザイン
-const SPR_PLAYER = mirrorRows([
-  '....oo............',
-  '....odoo..........',
-  '..ooddldo..oo.....',
-  '.odmlmmldooddo....',
-], 'odgmmmmlccmddddoo.');
-const PAL_PLAYER = { o: '#101828', d: '#3d4f66', m: '#6e86a4', l: '#aac2d8', c: '#38e0ff', g: '#ffd040' };
+// 自機「ソニックレイ」: 上下非対称の実機ジェット風シルエット。
+// 背側に尾翼とキャノピー、腹側に後退翼+丸型エンジンナセルを配置し、
+// 機首は長く伸びる。上下対称にしないことで個性を出している
+const SPR_PLAYER = [
+  '........................',
+  '.o......................',
+  '.o...........oo.........',
+  '.o......wwwwwokw........',
+  '.oo...wwwwwwwwwkro......',
+  '.oowwwwwwwwwwwmwwwwwwww.',
+  'oggowwwwwwwwwwwwwwwmwwso',
+  '....wwwwwokkkkowwwwwww..',
+  '.....mwwwwwwwwwww.......',
+  '....mwwwwwwwww..........',
+  '...mwwwwww..............',
+  '..oggo..................',
+  '...oo...................',
+];
+const PAL_PLAYER = {
+  o: '#0d0d10', // 輪郭(黒)
+  w: '#f7f4ec', // 主装甲(白、わずかに暖色)
+  s: '#cfd0d2', // 機首の陰影(ニュートラルグレー)
+  m: '#7a0f1c', // アクセントトリム(えんじ色/マルーン)
+  r: '#e2202f', // キャノピー/ライン(鮮やかな赤)
+  k: '#141014', // コクピット窓の陰
+  g: '#ffcf4d', // エンジングロー(琥珀)
+};
 // 4x5 ミニフォント(アイテム文字用)
 const MINI_FONT = {
   P: ['111.', '1..1', '111.', '1...', '1...'],
@@ -1563,38 +1579,50 @@ function drawPlayer() {
   const hover = Math.sin(frame * 0.09) * 0.8; // 停止中もわずかに浮遊
   ctx.save();
   ctx.translate(x, y + hover);
-  ctx.rotate(player.tilt * 0.22);            // バンク(上下移動で傾く)
-  ctx.scale(1, 1 - Math.abs(player.tilt) * 0.18);
+  // バンク(上下移動で「奥行き」に傾く): 機首の向き(中心線)は回転させず、
+  // 機体を上下方向にのみ潰して奥へ傾いたように見せる(純粋な垂直スケール)
+  const squash = 1 - Math.abs(player.tilt) * 0.32;
+  ctx.scale(1, squash);
   // エンジン炎(3段階アニメ + 左右入力でブースト/減速)
   const boost = inp.right() ? 1.6 : inp.left() ? 0.5 : 1;
   const fl = Math.floor(frame / 3) % 3;
-  glow(-22, 0, 7 * boost, '#ff9030', 0.35);
+  glow(-29, 0, 7 * boost, '#ff9030', 0.35);
   ctx.fillStyle = '#ff7020';
-  ctx.fillRect(-23 - (fl * 2.5 + 3) * boost, -2.5, (6 + fl * 2.5 + 3) * boost, 5);
+  ctx.fillRect(-30 - (fl * 2.5 + 3) * boost, -2.5, (6 + fl * 2.5 + 3) * boost, 5);
   ctx.fillStyle = '#ffd860';
-  ctx.fillRect(-21 - (fl * 1.5 + 2) * boost, -1.2, (4 + fl * 1.5 + 2) * boost, 2.5);
+  ctx.fillRect(-28 - (fl * 1.5 + 2) * boost, -1.2, (4 + fl * 1.5 + 2) * boost, 2.5);
   // 姿勢制御バーニア(移動方向の逆側に噴射)
   ctx.fillStyle = Math.floor(frame / 2) % 2 ? '#c8ecff' : '#8ac8f0';
   if (player.tilt < -0.25) { // 上昇中: 下面後方から噴射
-    ctx.fillRect(-8, 9, 3, 5 + Math.abs(player.tilt) * 4);
-    ctx.fillRect(2, 8, 3, 4 + Math.abs(player.tilt) * 3);
+    ctx.fillRect(-11, 11, 3, 5 + Math.abs(player.tilt) * 4);
+    ctx.fillRect(3, 9, 3, 4 + Math.abs(player.tilt) * 3);
   } else if (player.tilt > 0.25) { // 下降中: 上面後方から噴射
-    ctx.fillRect(-8, -14 - player.tilt * 4, 3, 5 + player.tilt * 4);
-    ctx.fillRect(2, -12 - player.tilt * 3, 3, 4 + player.tilt * 3);
+    ctx.fillRect(-11, -17 - player.tilt * 4, 3, 5 + player.tilt * 4);
+    ctx.fillRect(3, -14 - player.tilt * 3, 3, 4 + player.tilt * 3);
   }
   if (inp.left()) { // 減速: 機首の逆噴射
-    ctx.fillRect(17, -5, 4 + (frame % 3), 2.5);
-    ctx.fillRect(17, 3, 4 + ((frame + 1) % 3), 2.5);
+    ctx.fillRect(23, -5, 4 + (frame % 3), 2.5);
+    ctx.fillRect(23, 3.5, 4 + ((frame + 1) % 3), 2.5);
   }
   drawSprite(SPR_PLAYER, PAL_PLAYER, 0, 0);
-  // 動力コアの明滅
-  glow(-13, 0, 4, '#ffd040', 0.4 + 0.25 * Math.sin(frame * 0.25));
+  // 動力コアの明滅(双発エンジン部)
+  glow(-26, 0, 4.5, '#ffd040', 0.4 + 0.25 * Math.sin(frame * 0.25));
+  // 傾き方向を示すハイライト/シャドウ(機首は回転させず、面の陰影だけで奥行きを表現)
+  if (Math.abs(player.tilt) > 0.05) {
+    const t = clamp(Math.abs(player.tilt), 0, 1);
+    const climbing = player.tilt < 0;
+    const [hiY, shY] = climbing ? [-8.5, 5.5] : [5.5, -8.5]; // 上昇: 上面が見える / 下降: 下面が見える
+    ctx.fillStyle = `rgba(255,255,255,${0.22 * t})`;
+    ctx.fillRect(-20, hiY, 34, 2.5);
+    ctx.fillStyle = `rgba(0,0,0,${0.28 * t})`;
+    ctx.fillRect(-20, shY, 34, 2.5);
+  }
   ctx.restore();
   // マズルフラッシュ
   if (player.mflash > 0) {
     const mr = 3 + player.mflash * 1.4;
-    glow(x + 24, y + hover, mr + 3, '#ffe080', 0.4);
-    drawDiamond(x + 24, y + hover, mr, player.mflash % 2 ? '#fff8d0' : '#ffd040');
+    glow(x + 30, y + hover, mr + 3, '#ffe080', 0.4);
+    drawDiamond(x + 30, y + hover, mr, player.mflash % 2 ? '#fff8d0' : '#ffd040');
   }
   // シールド(二重リング)
   if (player.shield > 0) {
