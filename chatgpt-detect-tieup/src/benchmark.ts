@@ -149,7 +149,7 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.includes("--help") || args.includes("-h")) {
-    console.log(`使用法: npx ts-node src/benchmark.ts <input.tsv> [-o output.tsv]
+    console.log(`使用法: npx tsx src/benchmark.ts <input.tsv> [-o output.tsv]
 
 オプション:
   -o, --output <file>  出力ファイルを指定（省略時は標準出力）

@@ -37,13 +37,13 @@ chatgpt-detect-tieup/
 export OPENAI_API_KEY=your_api_key
 
 # 基本的な使い方（デフォルト: gpt-4o-mini）
-npx ts-node src/index.ts "紅蓮華" "LiSA"
+npx tsx src/index.ts "紅蓮華" "LiSA"
 
 # モデルを指定 (4o または 4o-mini)
-npx ts-node src/index.ts -m 4o "紅蓮華" "LiSA"
+npx tsx src/index.ts -m 4o "紅蓮華" "LiSA"
 
 # ヘルプ
-npx ts-node src/index.ts --help
+npx tsx src/index.ts --help
 ```
 
 ### オプション
@@ -92,13 +92,13 @@ import { detectTieup, Options, TieupInfo, Tieup } from "./index";
 
 ```bash
 # 標準出力に結果を表示
-npx ts-node src/benchmark.ts data/input.tsv
+npx tsx src/benchmark.ts data/input.tsv
 
 # ファイルに出力
-npx ts-node src/benchmark.ts data/input.tsv -o output/results.tsv
+npx tsx src/benchmark.ts data/input.tsv -o output/results.tsv
 
 # ヘルプ
-npx ts-node src/benchmark.ts --help
+npx tsx src/benchmark.ts --help
 ```
 
 ### オプション

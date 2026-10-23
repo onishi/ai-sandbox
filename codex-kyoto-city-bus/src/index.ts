@@ -39,7 +39,7 @@ function logVerbose(verbose: boolean, message: string): void {
 }
 
 function printHelp(): void {
-  console.log(`使用法: npx ts-node src/index.ts <command> [args]
+  console.log(`使用法: npx tsx src/index.ts <command> [args]
 
 command:
   download
@@ -47,15 +47,15 @@ command:
 
   stops <keyword>
       停留所名で検索します
-      例: npx ts-node src/index.ts stops 京都駅
+      例: npx tsx src/index.ts stops 京都駅
 
   routes [keyword]
       系統を一覧または絞り込み表示します
-      例: npx ts-node src/index.ts routes 206
+      例: npx tsx src/index.ts routes 206
 
   timetable <stop-keyword> [route-keyword]
       停留所の時刻表を表示します（GTFS の静的データ）
-      例: npx ts-node src/index.ts timetable 京都駅 206
+      例: npx tsx src/index.ts timetable 京都駅 206
 
 環境変数:
   ODPT_ACCESS_TOKEN

@@ -4,14 +4,14 @@
   "description": "京都市営バスの GTFS データを取得して検索する CLI",
   "main": "src/index.ts",
   "scripts": {
-    "start": "npx ts-node src/index.ts",
-    "scrape:route-stops": "npx ts-node src/scrape-route-stops.ts",
-    "stats:route-stops": "npx ts-node src/route-stops-stats.ts",
+    "start": "npx tsx src/index.ts",
+    "scrape:route-stops": "npx tsx src/scrape-route-stops.ts",
+    "stats:route-stops": "npx tsx src/route-stops-stats.ts",
     "typecheck": "npx tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.0"
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

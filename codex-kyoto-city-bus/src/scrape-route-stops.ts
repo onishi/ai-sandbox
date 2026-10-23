@@ -27,7 +27,7 @@ function logVerbose(verbose: boolean, message: string): void {
 }
 
 function printHelp(): void {
-  console.log(`使用法: npx ts-node src/scrape-route-stops.ts [options] [route...]
+  console.log(`使用法: npx tsx src/scrape-route-stops.ts [options] [route...]
 
 京都市バスの系統番号検索ページをたどって、系統ごとの停留所一覧を JSON 化します。
 
@@ -37,9 +37,9 @@ options:
   -h, --help           ヘルプを表示
 
 examples:
-  npx ts-node src/scrape-route-stops.ts
-  npx ts-node src/scrape-route-stops.ts 1 205
-  npx ts-node src/scrape-route-stops.ts -o data/routes.json 快速 206`);
+  npx tsx src/scrape-route-stops.ts
+  npx tsx src/scrape-route-stops.ts 1 205
+  npx tsx src/scrape-route-stops.ts -o data/routes.json 快速 206`);
 }
 
 function decodeHtmlEntities(value: string): string {

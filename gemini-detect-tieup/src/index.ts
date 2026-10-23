@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, GenerateContentConfig } from "@google/genai";
 
 export interface Tieup {
   type: string;
@@ -66,14 +66,12 @@ export async function detectTieup(song: string, artist: string, options: Options
 
   const modelName = options.model === "2.5" ? "gemini-2.5-flash" : "gemini-2.0-flash";
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const modelConfig: any = { model: modelName };
+  const ai = new GoogleGenAI({ apiKey });
+  const config: GenerateContentConfig = {};
 
   if (options.grounding) {
-    modelConfig.tools = [{ googleSearch: {} }];
+    config.tools = [{ googleSearch: {} }];
   }
-
-  const model = genAI.getGenerativeModel(modelConfig);
 
   const searchInstruction = options.grounding ? "Web検索して" : "";
   const prompt = `以下の曲の情報を${searchInstruction}教えてください。
@@ -99,10 +97,9 @@ export async function detectTieup(song: string, artist: string, options: Options
 JSON のみを返してください。説明文は不要です。`;
 
   const startTime = Date.now();
-  const result = await model.generateContent(prompt);
+  const response = await ai.models.generateContent({ model: modelName, contents: prompt, config });
   const elapsedMs = Date.now() - startTime;
-  const response = result.response;
-  const text = response.text();
+  const text = response.text || "";
 
   // JSON を抽出（```json ... ``` で囲まれている場合に対応）
   const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
@@ -129,7 +126,7 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.includes("--help") || args.includes("-h")) {
-    console.log(`使用法: npx ts-node src/index.ts [オプション] <曲名> <アーティスト名>
+    console.log(`使用法: npx tsx src/index.ts [オプション] <曲名> <アーティスト名>
 
 オプション:
   -m, --model <version>  モデルを指定 (2.0 または 2.5, デフォルト: 2.0)
@@ -137,8 +134,8 @@ async function main() {
   -h, --help             ヘルプを表示
 
 例:
-  npx ts-node src/index.ts "紅蓮華" "LiSA"
-  npx ts-node src/index.ts -m 2.5 -g "紅蓮華" "LiSA"`);
+  npx tsx src/index.ts "紅蓮華" "LiSA"
+  npx tsx src/index.ts -m 2.5 -g "紅蓮華" "LiSA"`);
     process.exit(0);
   }
 

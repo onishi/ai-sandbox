@@ -21,7 +21,7 @@
 
 - `npm install`: 依存関係をインストール
 - `npm start -- "紅蓮華" "LiSA"`: 1 曲分の CLI を実行
-- `npx ts-node src/benchmark.ts data/input.tsv -o result.tsv`: TSV 入力でベンチマークを実行し、結果を保存
+- `npx tsx src/benchmark.ts data/input.tsv -o result.tsv`: TSV 入力でベンチマークを実行し、結果を保存
 - `npx tsc --noEmit`: `dist/` を出力せず型チェックのみ実行
 
 環境変数は `chatgpt-detect-tieup` で `OPENAI_API_KEY`、`gemini-detect-tieup` で `GEMINI_API_KEY` を使用します。

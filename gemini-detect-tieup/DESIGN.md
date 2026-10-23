@@ -8,7 +8,7 @@
 
 - 言語: TypeScript
 - ランタイム: Node.js
-- API: Google Gemini API (@google/generative-ai)
+- API: Google Gemini API (@google/genai)
 
 ## ファイル構成
 
@@ -37,19 +37,19 @@ gemini-detect-tieup/
 export GEMINI_API_KEY=your_api_key
 
 # 基本的な使い方
-npx ts-node src/index.ts "紅蓮華" "LiSA"
+npx tsx src/index.ts "紅蓮華" "LiSA"
 
 # モデルを指定 (2.0 または 2.5)
-npx ts-node src/index.ts -m 2.5 "紅蓮華" "LiSA"
+npx tsx src/index.ts -m 2.5 "紅蓮華" "LiSA"
 
 # Google検索グラウンディングを有効化
-npx ts-node src/index.ts -g "紅蓮華" "LiSA"
+npx tsx src/index.ts -g "紅蓮華" "LiSA"
 
 # 組み合わせ
-npx ts-node src/index.ts -m 2.5 -g "紅蓮華" "LiSA"
+npx tsx src/index.ts -m 2.5 -g "紅蓮華" "LiSA"
 
 # ヘルプ
-npx ts-node src/index.ts --help
+npx tsx src/index.ts --help
 ```
 
 ### オプション
@@ -100,13 +100,13 @@ import { detectTieup, Options, TieupInfo, Tieup } from "./index";
 
 ```bash
 # 標準出力に結果を表示
-npx ts-node src/benchmark.ts data/input.tsv
+npx tsx src/benchmark.ts data/input.tsv
 
 # ファイルに出力
-npx ts-node src/benchmark.ts data/input.tsv -o output/results.tsv
+npx tsx src/benchmark.ts data/input.tsv -o output/results.tsv
 
 # ヘルプ
-npx ts-node src/benchmark.ts --help
+npx tsx src/benchmark.ts --help
 ```
 
 ### オプション

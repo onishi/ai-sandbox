@@ -31,7 +31,7 @@ function logVerbose(verbose: boolean, message: string): void {
 }
 
 function printHelp(): void {
-  console.log(`使用法: npx ts-node src/route-stops-stats.ts <command> [options]
+  console.log(`使用法: npx tsx src/route-stops-stats.ts <command> [options]
 
 command:
   stops:routes
@@ -52,13 +52,13 @@ options:
   -h, --help          ヘルプを表示
 
 examples:
-  npx ts-node src/route-stops-stats.ts stops:routes
-  npx ts-node src/route-stops-stats.ts stops:routes --match 京都駅前
-  npx ts-node src/route-stops-stats.ts stops:route-count
-  npx ts-node src/route-stops-stats.ts stops:direct-reachable-count --match 西賀茂車庫
-  npx ts-node src/route-stops-stats.ts stops:one-transfer-reachable-count
-  npx ts-node src/route-stops-stats.ts stops:route-reachable --match 西賀茂車庫
-  npx ts-node src/route-stops-stats.ts stops:routes -i data/kyoto-city-route-stops-206.json`);
+  npx tsx src/route-stops-stats.ts stops:routes
+  npx tsx src/route-stops-stats.ts stops:routes --match 京都駅前
+  npx tsx src/route-stops-stats.ts stops:route-count
+  npx tsx src/route-stops-stats.ts stops:direct-reachable-count --match 西賀茂車庫
+  npx tsx src/route-stops-stats.ts stops:one-transfer-reachable-count
+  npx tsx src/route-stops-stats.ts stops:route-reachable --match 西賀茂車庫
+  npx tsx src/route-stops-stats.ts stops:routes -i data/kyoto-city-route-stops-206.json`);
 }
 
 function parseArgs(args: string[]): CliOptions {

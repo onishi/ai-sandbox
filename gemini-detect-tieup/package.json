@@ -4,14 +4,14 @@
   "description": "Gemini API で曲名・アーティスト名からタイアップ情報を取得",
   "main": "src/index.ts",
   "scripts": {
-    "start": "npx ts-node src/index.ts"
-  },
-  "dependencies": {
-    "@google/generative-ai": "^0.21.0"
+    "start": "npx tsx src/index.ts"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.0"
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.30.0"
   }
 }

@@ -119,15 +119,15 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.includes("--help") || args.includes("-h")) {
-    console.log(`使用法: npx ts-node src/index.ts [オプション] <曲名> <アーティスト名>
+    console.log(`使用法: npx tsx src/index.ts [オプション] <曲名> <アーティスト名>
 
 オプション:
   -m, --model <version>  モデルを指定 (4o または 4o-mini, デフォルト: 4o-mini)
   -h, --help             ヘルプを表示
 
 例:
-  npx ts-node src/index.ts "紅蓮華" "LiSA"
-  npx ts-node src/index.ts -m 4o "紅蓮華" "LiSA"`);
+  npx tsx src/index.ts "紅蓮華" "LiSA"
+  npx tsx src/index.ts -m 4o "紅蓮華" "LiSA"`);
     process.exit(0);
   }
 
