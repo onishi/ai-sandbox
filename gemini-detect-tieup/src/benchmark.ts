@@ -25,7 +25,7 @@ function formatTieups(tieups: Tieup[]): string {
     .join(" / ");
 }
 
-const MODEL_VERSIONS: Array<"2.0" | "2.5"> = ["2.0", "2.5"];
+const MODEL_VERSIONS: Array<"2.5"> = ["2.5"];
 const GROUNDING_OPTIONS = [false, true];
 const SLEEP_MS = 500; // API呼び出し間隔（ミリ秒）
 
@@ -114,7 +114,7 @@ async function runBenchmark(
           results.push({
             song,
             artist,
-            model: modelVersion === "2.5" ? "gemini-2.5-flash" : "gemini-2.0-flash",
+            model: "gemini-2.5-flash",
             grounding,
             lyricist: "",
             composer: "",

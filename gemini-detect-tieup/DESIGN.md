@@ -39,7 +39,7 @@ export GEMINI_API_KEY=your_api_key
 # 基本的な使い方
 npx tsx src/index.ts "紅蓮華" "LiSA"
 
-# モデルを指定 (2.0 または 2.5)
+# モデルを指定 (2.5)
 npx tsx src/index.ts -m 2.5 "紅蓮華" "LiSA"
 
 # Google検索グラウンディングを有効化
@@ -56,7 +56,7 @@ npx tsx src/index.ts --help
 
 | オプション | 説明 |
 |-----------|------|
-| `-m, --model <version>` | モデルを指定 (2.0 または 2.5, デフォルト: 2.0) |
+| `-m, --model <version>` | モデルを指定 (2.5, デフォルト: 2.5) |
 | `-g, --grounding` | Google検索グラウンディングを有効化 |
 | `-h, --help` | ヘルプを表示 |
 
@@ -76,7 +76,7 @@ npx tsx src/index.ts --help
       "description": "テレビアニメ版オープニングテーマ"
     }
   ],
-  "model": "gemini-2.0-flash",
+  "model": "gemini-2.5-flash",
   "grounding": false,
   "elapsedMs": 1234
 }
@@ -127,12 +127,10 @@ song	artist
 
 ### 出力形式 (TSV)
 
-各曲を 4パターン（2モデル × グラウンディング有無）で実行：
+各曲を 2パターン（グラウンディング有無）で実行：
 
 ```
 model	grounding	song	artist	lyricist	composer	tieups	elapsed_ms	error
-gemini-2.0-flash	false	紅蓮華	LiSA	LiSA	草野華余子	アニメOP: 鬼滅の刃 (2019) - テレビアニメ版オープニングテーマ	1234
-gemini-2.0-flash	true	紅蓮華	LiSA	LiSA	草野華余子	アニメOP: 鬼滅の刃 (2019) - テレビアニメ版オープニングテーマ	2456
 gemini-2.5-flash	false	紅蓮華	LiSA	LiSA	草野華余子	アニメOP: 鬼滅の刃 (2019) - テレビアニメ版オープニングテーマ	1567
 gemini-2.5-flash	true	紅蓮華	LiSA	LiSA	草野華余子	アニメOP: 鬼滅の刃 (2019) - テレビアニメ版オープニングテーマ	2890
 ```
@@ -141,7 +139,7 @@ gemini-2.5-flash	true	紅蓮華	LiSA	LiSA	草野華余子	アニメOP: 鬼滅の
 
 | カラム | 説明 |
 |--------|------|
-| model | 使用モデル (gemini-2.0-flash / gemini-2.5-flash) |
+| model | 使用モデル (gemini-2.5-flash) |
 | grounding | グラウンディング有無 (true/false) |
 | song | 曲名 |
 | artist | アーティスト名 |

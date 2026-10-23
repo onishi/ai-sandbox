@@ -19,13 +19,13 @@ export interface TieupInfo {
 }
 
 export interface Options {
-  model: "2.0" | "2.5";
+  model: "2.5";
   grounding: boolean;
 }
 
 function parseArgs(args: string[]): { song: string; artist: string; options: Options } {
   const options: Options = {
-    model: "2.0",
+    model: "2.5",
     grounding: false,
   };
 
@@ -35,10 +35,10 @@ function parseArgs(args: string[]): { song: string; artist: string; options: Opt
     const arg = args[i];
     if (arg === "--model" || arg === "-m") {
       const value = args[++i];
-      if (value === "2.0" || value === "2.5") {
+      if (value === "2.5") {
         options.model = value;
       } else {
-        throw new Error("モデルは 2.0 または 2.5 を指定してください");
+        throw new Error("モデルは 2.5 を指定してください");
       }
     } else if (arg === "--grounding" || arg === "-g") {
       options.grounding = true;
@@ -64,7 +64,7 @@ export async function detectTieup(song: string, artist: string, options: Options
     throw new Error("GEMINI_API_KEY 環境変数が設定されていません");
   }
 
-  const modelName = options.model === "2.5" ? "gemini-2.5-flash" : "gemini-2.0-flash";
+  const modelName = "gemini-2.5-flash";
 
   const ai = new GoogleGenAI({ apiKey });
   const config: GenerateContentConfig = {};
@@ -129,7 +129,7 @@ async function main() {
     console.log(`使用法: npx tsx src/index.ts [オプション] <曲名> <アーティスト名>
 
 オプション:
-  -m, --model <version>  モデルを指定 (2.0 または 2.5, デフォルト: 2.0)
+  -m, --model <version>  モデルを指定 (2.5, デフォルト: 2.5)
   -g, --grounding        Google検索グラウンディングを有効化
   -h, --help             ヘルプを表示
 
